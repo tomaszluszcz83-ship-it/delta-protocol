@@ -301,3 +301,4 @@ Identity should be proven by signed evidence and hashes, not by unnecessary expo
 Principle:
 
 Identity by proof, not exposure.
+
