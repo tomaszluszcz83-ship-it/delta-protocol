@@ -1,18 +1,26 @@
-# DELTA Protocol byte-stability policy.
-# Verification hashes are computed over exact bytes.
-# These rules prevent Windows CRLF checkout from breaking public proof hashes.
+# DELTA Protocol line-ending and byte-stability policy.
+#
+# Rule:
+# - Source/docs may be normalized to LF.
+# - Public proof artifacts MUST preserve exact bytes.
+#
+# Public verifiers hash bytes, not visual text. Therefore proof artifacts
+# must not be changed by Git CRLF/LF conversion.
 
-spec/** text eol=lf
-docs/spec/** text eol=lf
-
-*.py text eol=lf
+# Normal text files
 README.md text eol=lf
-
+src/** text eol=lf
 docs/**/*.html text eol=lf
 docs/**/*.css text eol=lf
 docs/**/*.js text eol=lf
 docs/**/*.md text eol=lf
 
+# Public proof artifacts: preserve exact bytes.
+# Do NOT normalize line endings here.
+spec/** -text
+examples/** -text
+
+# Binary artifacts
 *.png binary
 *.jpg binary
 *.jpeg binary
