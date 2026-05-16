@@ -16,10 +16,10 @@ from typing import List, Optional
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
 
-CLI_VERSION = "DELTA CLI v0.7-alpha-claim"
+CLI_VERSION = "DELTA CLI v0.7-alpha-attest-fixed"
 PROTOCOL_NAME = "DELTA-0"
 
 KEY_NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
@@ -44,6 +44,25 @@ def utc_now() -> str:
 
 def b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).decode("ascii").rstrip("=")
+
+
+def b64url_decode(value: str) -> bytes:
+    padding = "=" * ((4 - len(value) % 4) % 4)
+    return base64.urlsafe_b64decode((value + padding).encode("ascii"))
+
+
+def decode_prefixed_b64url(label: str, value: str, prefix: str) -> bytes:
+    if not isinstance(value, str) or not value.startswith(prefix):
+        raise ValueError(f"Invalid {label}. Expected prefix: {prefix}")
+
+    encoded = value[len(prefix):]
+    if not encoded:
+        raise ValueError(f"Invalid {label}. Empty base64url value.")
+
+    try:
+        return b64url_decode(encoded)
+    except Exception as exc:
+        raise ValueError(f"Invalid {label}. Could not decode base64url value.") from exc
 
 
 def sha256_bytes(data: bytes) -> str:
@@ -117,6 +136,31 @@ def validate_action(action: str) -> None:
         raise ValueError("Invalid action. Action must not be empty.")
 
 
+def validate_attestation_result(result: str) -> None:
+    if not result or not result.strip():
+        raise ValueError("Invalid result. Result must not be empty.")
+
+    if not re.match(r"^[A-Z0-9_-]{1,64}$", result.strip()):
+        raise ValueError(
+            "Invalid result. Use 1-64 uppercase letters, digits, underscore, or dash."
+        )
+
+
+def validate_publication_mode(publication_mode: str) -> None:
+    if publication_mode != "ledger_required":
+        raise ValueError("Invalid publication-mode. v0.7-alpha requires: ledger_required.")
+
+
+def validate_ledger_id(ledger_id: str) -> None:
+    if not ledger_id or not ledger_id.strip():
+        raise ValueError("Invalid ledger-id. ledger-id must not be empty.")
+
+    if not re.match(r"^[A-Za-z0-9._:/-]{1,120}$", ledger_id.strip()):
+        raise ValueError(
+            "Invalid ledger-id. Use 1-120 chars: letters, digits, dot, underscore, colon, slash, or dash."
+        )
+
+
 def default_key_dir() -> Path:
     return Path.home() / ".delta" / "keys"
 
@@ -169,6 +213,28 @@ def load_ed25519_private_key(path: Path) -> Ed25519PrivateKey:
         raise TypeError("Private key PEM is not an Ed25519 private key.")
 
     return loaded
+
+
+def public_key_from_value(value: str) -> Ed25519PublicKey:
+    raw = decode_prefixed_b64url("public_key", value, "ed25519:")
+
+    if len(raw) != 32:
+        raise ValueError("Invalid Ed25519 public key length.")
+
+    return Ed25519PublicKey.from_public_bytes(raw)
+
+
+def read_json_file(path: Path, label: str):
+    if not path.exists():
+        raise FileNotFoundError(f"Missing {label}: {path}")
+
+    if not path.is_file():
+        raise ValueError(f"{label} path is not a file: {path}")
+
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise RuntimeError(f"Could not read valid JSON from {label}: {path}") from exc
 
 
 def build_public_key_record(*, key_name: str, role: str, public_key: str) -> dict:
@@ -226,6 +292,100 @@ def build_executor_signature(
         "signature": "ed25519sig:" + b64url(signature_bytes),
         "signed_at": signed_at,
     }
+
+
+def build_attestation(
+    *,
+    verifier_pubkey: str,
+    target_claim_hash: str,
+    target_executor_sig_hash: str,
+    verification_policy_hash: str,
+    evidence_hash: str,
+    publication_mode: str,
+    intended_ledger_id: str,
+    result: str,
+    verified_at: str,
+) -> dict:
+    return {
+        "type": "delta_attestation",
+        "protocol_version": PROTOCOL_NAME,
+        "verifier_pubkey": verifier_pubkey,
+        "target_claim_hash": target_claim_hash,
+        "target_executor_sig_hash": target_executor_sig_hash,
+        "verification_policy_hash": verification_policy_hash,
+        "evidence_hash": evidence_hash,
+        "publication_mode": publication_mode,
+        "intended_ledger_id": intended_ledger_id,
+        "result": result,
+        "verified_at": verified_at,
+    }
+
+
+def build_verifier_signature(
+    *,
+    public_key: str,
+    target_hash: str,
+    signature_bytes: bytes,
+    signed_at: str,
+) -> dict:
+    return {
+        "type": "delta_signature",
+        "protocol_version": PROTOCOL_NAME,
+        "role": "verifier",
+        "alg": "Ed25519",
+        "target_type": "delta_attestation",
+        "target_hash": target_hash,
+        "public_key": public_key,
+        "signature": "ed25519sig:" + b64url(signature_bytes),
+        "signed_at": signed_at,
+    }
+
+
+def require_equal(label: str, actual, expected) -> None:
+    if actual != expected:
+        raise ValueError(f"Invalid {label}. Expected {expected!r}, got {actual!r}.")
+
+
+def verify_executor_signature_or_raise(claim: dict, executor_signature: dict) -> tuple[str, str]:
+    require_equal("claim.type", claim.get("type"), "delta_claim")
+    require_equal("claim.protocol_version", claim.get("protocol_version"), PROTOCOL_NAME)
+
+    require_equal("executor_signature.type", executor_signature.get("type"), "delta_signature")
+    require_equal("executor_signature.protocol_version", executor_signature.get("protocol_version"), PROTOCOL_NAME)
+    require_equal("executor_signature.role", executor_signature.get("role"), "executor")
+    require_equal("executor_signature.alg", executor_signature.get("alg"), "Ed25519")
+    require_equal("executor_signature.target_type", executor_signature.get("target_type"), "delta_claim")
+
+    claim_public_key = claim.get("executor_pubkey")
+    signature_public_key = executor_signature.get("public_key")
+
+    if not isinstance(claim_public_key, str) or not claim_public_key.startswith("ed25519:"):
+        raise ValueError("Invalid claim.executor_pubkey.")
+
+    if signature_public_key != claim_public_key:
+        raise ValueError("Executor signature public key does not match claim executor_pubkey.")
+
+    claim_bytes = canonical_json_bytes(claim)
+    claim_hash = sha256_bytes(claim_bytes)
+
+    if executor_signature.get("target_hash") != claim_hash:
+        raise ValueError("Executor signature target_hash does not match claim hash.")
+
+    signature_bytes = decode_prefixed_b64url(
+        "executor_signature.signature",
+        executor_signature.get("signature"),
+        "ed25519sig:",
+    )
+
+    try:
+        public_key = public_key_from_value(signature_public_key)
+        public_key.verify(signature_bytes, claim_bytes)
+    except InvalidSignature as exc:
+        raise RuntimeError(
+            "Executor signature verification failed. Refusing to attest an invalid claim."
+        ) from exc
+
+    return claim_hash, sha256_bytes(canonical_json_bytes(executor_signature))
 
 
 def require_safe_private_key_location(private_path: Path) -> None:
@@ -521,6 +681,127 @@ def command_claim(args: argparse.Namespace) -> int:
         private_key = None
 
 
+def command_attest(args: argparse.Namespace) -> int:
+    print_header("attest")
+
+    private_key: Optional[Ed25519PrivateKey] = None
+
+    try:
+        validate_sha256_hash("policy-hash", args.policy_hash)
+        validate_attestation_result(args.result)
+        validate_publication_mode(args.publication_mode)
+        validate_ledger_id(args.ledger_id)
+
+        claim_dir = Path(args.claim_dir).expanduser().resolve()
+        out_dir = Path(args.out_dir).expanduser().resolve() if args.out_dir else Path.cwd().resolve()
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        claim_path = claim_dir / "claim.json"
+        executor_signature_path = claim_dir / "executor_signature.json"
+
+        attestation_path = out_dir / "attestation.json"
+        verifier_signature_path = out_dir / "verifier_signature.json"
+
+        existing_paths = [path for path in [attestation_path, verifier_signature_path] if path.exists()]
+        if existing_paths:
+            print("DELTA ATTEST RESULT: FAILED")
+            print("")
+            print("ERROR: Refusing to overwrite existing attestation files.")
+            print("")
+            for path in existing_paths:
+                print(f"Existing file: {path}")
+            print("")
+            print("Use a different --out-dir or move the existing files first.")
+            return 1
+
+        claim = read_json_file(claim_path, "claim.json")
+        executor_signature = read_json_file(executor_signature_path, "executor_signature.json")
+
+        claim_hash, executor_signature_hash = verify_executor_signature_or_raise(
+            claim,
+            executor_signature,
+        )
+
+        evidence_hash = claim.get("evidence_hash")
+        validate_sha256_hash("claim.evidence_hash", evidence_hash)
+
+        key_path = Path(args.key).expanduser().resolve()
+        private_key = load_ed25519_private_key(key_path)
+        verifier_pubkey = public_key_value(private_key)
+
+        verified_at = utc_now()
+        attestation = build_attestation(
+            verifier_pubkey=verifier_pubkey,
+            target_claim_hash=claim_hash,
+            target_executor_sig_hash=executor_signature_hash,
+            verification_policy_hash=args.policy_hash,
+            evidence_hash=evidence_hash,
+            publication_mode=args.publication_mode,
+            intended_ledger_id=args.ledger_id.strip(),
+            result=args.result.strip(),
+            verified_at=verified_at,
+        )
+
+        attestation_bytes = canonical_json_bytes(attestation)
+        attestation_hash = sha256_bytes(attestation_bytes)
+        verifier_signature_bytes = private_key.sign(attestation_bytes)
+
+        try:
+            private_key.public_key().verify(verifier_signature_bytes, attestation_bytes)
+        except InvalidSignature as exc:
+            raise RuntimeError("Internal verifier signature self-check failed.") from exc
+
+        verifier_signature = build_verifier_signature(
+            public_key=verifier_pubkey,
+            target_hash=attestation_hash,
+            signature_bytes=verifier_signature_bytes,
+            signed_at=verified_at,
+        )
+
+        private_key = None
+        verifier_signature_bytes = bytes(verifier_signature_bytes)
+
+        write_json_exclusive(attestation_path, attestation)
+        write_json_exclusive(verifier_signature_path, verifier_signature)
+
+        print("DELTA ATTEST RESULT: OK")
+        print("")
+        print(f"Attestation written: {attestation_path}")
+        print(f"Verifier signature written: {verifier_signature_path}")
+        print("")
+        print(f"Target claim hash: {claim_hash}")
+        print(f"Target executor signature hash: {executor_signature_hash}")
+        print(f"Evidence hash: {evidence_hash}")
+        print(f"Publication mode: {args.publication_mode}")
+        print(f"Intended ledger ID: {args.ledger_id.strip()}")
+        print(f"Attestation hash: {attestation_hash}")
+        print(f"Verifier public key: {verifier_pubkey}")
+        print("")
+        print("Security:")
+        print("- Executor signature was verified before attestation.")
+        print("- attestation.json does not contain an embedded signature.")
+        print("- verifier_signature.json is a detached signature envelope.")
+        print("- The signature input is canonical JSON bytes of attestation.json.")
+        print("- Existing attestation files are not overwritten.")
+        print("- The verifier private key was loaded only for signing and was not printed.")
+        return 0
+
+    except FileExistsError as exc:
+        print("DELTA ATTEST RESULT: FAILED")
+        print("")
+        print("ERROR: Refusing to overwrite existing attestation files.")
+        print(exc)
+        return 1
+    except Exception as exc:
+        print("DELTA ATTEST RESULT: FAILED")
+        print("")
+        print("ERROR:")
+        print(exc)
+        return 1
+    finally:
+        private_key = None
+
+
 def command_verify_genesis(args: argparse.Namespace) -> int:
     print_header("verify-genesis")
 
@@ -658,6 +939,47 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output directory for claim.json and executor_signature.json. Default: current directory.",
     )
     claim_parser.set_defaults(func=command_claim)
+
+    attest_parser = subparsers.add_parser(
+        "attest",
+        help="Create a DELTA Attestation and detached Verifier signature.",
+    )
+    attest_parser.add_argument(
+        "--claim-dir",
+        required=True,
+        help="Directory containing claim.json and executor_signature.json.",
+    )
+    attest_parser.add_argument(
+        "--policy-hash",
+        required=True,
+        help="Verification policy hash in format sha256:<64 lowercase hex characters>.",
+    )
+    attest_parser.add_argument(
+        "--result",
+        default="VERIFIED",
+        help="Attestation result. Default: VERIFIED.",
+    )
+    attest_parser.add_argument(
+        "--publication-mode",
+        default="ledger_required",
+        help="Publication mode. v0.7-alpha requires: ledger_required.",
+    )
+    attest_parser.add_argument(
+        "--ledger-id",
+        default="delta-ledger:local",
+        help="Intended ledger identifier. Default: delta-ledger:local.",
+    )
+    attest_parser.add_argument(
+        "--key",
+        required=True,
+        help="Path to the Verifier Ed25519 private key PEM.",
+    )
+    attest_parser.add_argument(
+        "--out-dir",
+        default=None,
+        help="Output directory for attestation.json and verifier_signature.json. Default: current directory.",
+    )
+    attest_parser.set_defaults(func=command_attest)
 
     verify_genesis_parser = subparsers.add_parser(
         "verify-genesis",
