@@ -1,0 +1,12 @@
+{
+  "type": "delta_signature",
+  "protocol_version": "DELTA-0",
+  "example_version": "DELTA-0 v0.6.2",
+  "role": "ai_agent_executor",
+  "alg": "Ed25519",
+  "public_key": "ed25519:xAShPo1J-6w9pSSgvEdZQTyE4SEU5qVRV11JzBK0vro",
+  "target_type": "delta_claim",
+  "target_hash": "sha256:dfd02a7bc6daad69bc7bc50b86ecbc69f8b3ff724830265eb81dd04443a48941",
+  "signature": "ed25519sig:4DkRAmwGceg3yKB8hXOhUm1VsH21YogYPWHtpPFUDIpq8E_27EvwlA4Dm5-7M4Br4UeDIczZ0jTqd3LErFRyDQ",
+  "timestamp": "2026-05-16T14:06:47Z"
+}

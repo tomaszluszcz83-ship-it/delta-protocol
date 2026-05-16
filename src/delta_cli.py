@@ -8,218 +8,166 @@ from pathlib import Path
 from typing import List, Optional
 
 
-DELTA_CLI_VERSION = "DELTA CLI v0.6-alpha"
-PROTOCOL_VERSION = "DELTA-0"
+CLI_VERSION = "DELTA CLI v0.6.2-alpha"
+PROTOCOL_NAME = "DELTA-0"
 
 
 @dataclass(frozen=True)
-class VerificationTask:
+class VerificationTarget:
     name: str
+    label: str
     script_path: Path
-    ok_marker: str
-
-
-@dataclass(frozen=True)
-class VerificationResult:
-    name: str
-    ok: bool
-    returncode: int
-    stdout: str
-    stderr: str
-    reason: str
+    success_marker: str
 
 
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def python_executable() -> str:
-    return sys.executable
+def run_python_script(target: VerificationTarget, *, verbose: bool = False) -> bool:
+    root = repo_root()
+
+    if not target.script_path.exists():
+        print(f"{target.label}: FAILED")
+        print(f"Missing verifier script: {target.script_path}")
+        return False
+
+    completed = subprocess.run(
+        [sys.executable, str(target.script_path)],
+        cwd=str(root),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+
+    output = completed.stdout or ""
+
+    if verbose:
+        print(output.rstrip())
+
+    ok = completed.returncode == 0 and target.success_marker in output
+
+    if ok:
+        print(f"{target.label}: OK")
+        return True
+
+    print(f"{target.label}: FAILED")
+
+    if not verbose:
+        print("")
+        print("Verifier output:")
+        print(output.rstrip())
+
+    return False
 
 
-def build_tasks(root: Path) -> dict[str, VerificationTask]:
+def targets() -> dict[str, VerificationTarget]:
+    root = repo_root()
+
     return {
-        "genesis": VerificationTask(
-            name="Genesis verifier",
+        "genesis": VerificationTarget(
+            name="genesis",
+            label="Genesis verifier",
             script_path=root / "src" / "genesis_public_verifier.py",
-            ok_marker="DELTA PUBLIC VERIFIER RESULT: OK",
+            success_marker="DELTA PUBLIC VERIFIER RESULT: OK",
         ),
-        "code-change": VerificationTask(
-            name="Code Change Proof verifier",
-            script_path=root
-            / "examples"
-            / "code-change-proof"
-            / "code_change_public_verifier.py",
-            ok_marker="DELTA CODE CHANGE PROOF VERIFIER RESULT: OK",
+        "code-change": VerificationTarget(
+            name="code-change",
+            label="Code Change Proof verifier",
+            script_path=root / "examples" / "code-change-proof" / "code_change_public_verifier.py",
+            success_marker="DELTA CODE CHANGE PROOF VERIFIER RESULT: OK",
         ),
-        "private-payload": VerificationTask(
-            name="Private Payload Proof verifier",
-            script_path=root
-            / "examples"
-            / "private-payload-proof"
-            / "private_payload_public_verifier.py",
-            ok_marker="DELTA PRIVATE PAYLOAD PROOF VERIFIER RESULT: OK",
+        "private-payload": VerificationTarget(
+            name="private-payload",
+            label="Private Payload Proof verifier",
+            script_path=root / "examples" / "private-payload-proof" / "private_payload_public_verifier.py",
+            success_marker="DELTA PRIVATE PAYLOAD PROOF VERIFIER RESULT: OK",
+        ),
+        "ai-agent": VerificationTarget(
+            name="ai-agent",
+            label="AI Agent Proof verifier",
+            script_path=root / "examples" / "ai-agent-proof" / "ai_agent_public_verifier.py",
+            success_marker="DELTA AI AGENT PROOF VERIFIER RESULT: OK",
         ),
     }
 
 
-def run_task(task: VerificationTask, root: Path) -> VerificationResult:
-    if not task.script_path.exists():
-        return VerificationResult(
-            name=task.name,
-            ok=False,
-            returncode=1,
-            stdout="",
-            stderr="",
-            reason=f"Verifier script not found: {task.script_path}",
-        )
-
-    completed = subprocess.run(
-        [python_executable(), str(task.script_path)],
-        cwd=str(root),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-
-    stdout = completed.stdout or ""
-    stderr = completed.stderr or ""
-
-    if completed.returncode != 0:
-        return VerificationResult(
-            name=task.name,
-            ok=False,
-            returncode=completed.returncode,
-            stdout=stdout,
-            stderr=stderr,
-            reason=f"Verifier exited with code {completed.returncode}.",
-        )
-
-    if task.ok_marker not in stdout:
-        return VerificationResult(
-            name=task.name,
-            ok=False,
-            returncode=completed.returncode,
-            stdout=stdout,
-            stderr=stderr,
-            reason=f"Expected OK marker not found: {task.ok_marker}",
-        )
-
-    return VerificationResult(
-        name=task.name,
-        ok=True,
-        returncode=completed.returncode,
-        stdout=stdout,
-        stderr=stderr,
-        reason="OK",
-    )
+def print_header(command: str) -> None:
+    print(CLI_VERSION)
+    print(f"Command: {command}")
+    print("")
 
 
-def print_result(result: VerificationResult, verbose: bool = False) -> None:
-    status = "OK" if result.ok else "FAILED"
-    print(f"{result.name}: {status}")
-
-    if verbose:
-        print("")
-        print(f"--- {result.name} stdout ---")
-        print(result.stdout.rstrip() if result.stdout else "(empty)")
-
-        if result.stderr:
-            print("")
-            print(f"--- {result.name} stderr ---")
-            print(result.stderr.rstrip())
-
-        print("")
-
-    if not result.ok and not verbose:
-        print(f"Reason: {result.reason}")
-
-        if result.stderr:
-            print("")
-            print("stderr:")
-            print(result.stderr.rstrip())
-
-
-def command_version(_: argparse.Namespace) -> int:
+def command_version(_args: argparse.Namespace) -> int:
     root = repo_root()
 
-    print(DELTA_CLI_VERSION)
-    print(f"Protocol: {PROTOCOL_VERSION}")
+    print(CLI_VERSION)
+    print(f"Protocol: {PROTOCOL_NAME}")
     print(f"Repository root: {root}")
 
     return 0
 
 
 def command_verify_genesis(args: argparse.Namespace) -> int:
-    root = repo_root()
-    task = build_tasks(root)["genesis"]
+    print_header("verify-genesis")
 
-    print(DELTA_CLI_VERSION)
-    print("Command: verify-genesis")
-    print("")
-
-    result = run_task(task, root)
-    print_result(result, verbose=args.verbose)
+    ok = run_python_script(targets()["genesis"], verbose=args.verbose)
 
     print("")
-    print("DELTA CLI RESULT: OK" if result.ok else "DELTA CLI RESULT: FAILED")
+    print("DELTA CLI RESULT: OK" if ok else "DELTA CLI RESULT: FAILED")
 
-    return 0 if result.ok else 1
+    return 0 if ok else 1
 
 
 def command_verify_code_change(args: argparse.Namespace) -> int:
-    root = repo_root()
-    task = build_tasks(root)["code-change"]
+    print_header("verify-code-change")
 
-    print(DELTA_CLI_VERSION)
-    print("Command: verify-code-change")
-    print("")
-
-    result = run_task(task, root)
-    print_result(result, verbose=args.verbose)
+    ok = run_python_script(targets()["code-change"], verbose=args.verbose)
 
     print("")
-    print("DELTA CLI RESULT: OK" if result.ok else "DELTA CLI RESULT: FAILED")
+    print("DELTA CLI RESULT: OK" if ok else "DELTA CLI RESULT: FAILED")
 
-    return 0 if result.ok else 1
+    return 0 if ok else 1
 
 
 def command_verify_private_payload(args: argparse.Namespace) -> int:
-    root = repo_root()
-    task = build_tasks(root)["private-payload"]
+    print_header("verify-private-payload")
 
-    print(DELTA_CLI_VERSION)
-    print("Command: verify-private-payload")
-    print("")
-
-    result = run_task(task, root)
-    print_result(result, verbose=args.verbose)
+    ok = run_python_script(targets()["private-payload"], verbose=args.verbose)
 
     print("")
-    print("DELTA CLI RESULT: OK" if result.ok else "DELTA CLI RESULT: FAILED")
+    print("DELTA CLI RESULT: OK" if ok else "DELTA CLI RESULT: FAILED")
 
-    return 0 if result.ok else 1
+    return 0 if ok else 1
+
+
+def command_verify_ai_agent(args: argparse.Namespace) -> int:
+    print_header("verify-ai-agent")
+
+    ok = run_python_script(targets()["ai-agent"], verbose=args.verbose)
+
+    print("")
+    print("DELTA CLI RESULT: OK" if ok else "DELTA CLI RESULT: FAILED")
+
+    return 0 if ok else 1
 
 
 def command_verify_all(args: argparse.Namespace) -> int:
-    root = repo_root()
-    tasks = build_tasks(root)
+    print_header("verify-all")
 
-    print(DELTA_CLI_VERSION)
-    print("Command: verify-all")
-    print("")
-
-    results: List[VerificationResult] = [
-        run_task(tasks["genesis"], root),
-        run_task(tasks["code-change"], root),
-        run_task(tasks["private-payload"], root),
+    ordered_targets: List[VerificationTarget] = [
+        targets()["genesis"],
+        targets()["code-change"],
+        targets()["private-payload"],
+        targets()["ai-agent"],
     ]
 
-    for result in results:
-        print_result(result, verbose=args.verbose)
+    all_ok = True
 
-    all_ok = all(result.ok for result in results)
+    for target in ordered_targets:
+        ok = run_python_script(target, verbose=args.verbose)
+        all_ok = all_ok and ok
 
     print("")
     print("DELTA CLI RESULT: OK" if all_ok else "DELTA CLI RESULT: FAILED")
@@ -229,7 +177,7 @@ def command_verify_all(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="delta",
+        prog="delta_cli.py",
         description="DELTA Protocol command line interface.",
     )
 
@@ -243,7 +191,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     verify_genesis_parser = subparsers.add_parser(
         "verify-genesis",
-        help="Run the public DELTA-0 Genesis verifier.",
+        help="Run the DELTA Genesis public verifier.",
     )
     verify_genesis_parser.add_argument(
         "--verbose",
@@ -254,7 +202,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     verify_code_change_parser = subparsers.add_parser(
         "verify-code-change",
-        help="Run the Code Change Proof example verifier.",
+        help="Run the Code Change Proof verifier.",
     )
     verify_code_change_parser.add_argument(
         "--verbose",
@@ -265,7 +213,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     verify_private_payload_parser = subparsers.add_parser(
         "verify-private-payload",
-        help="Run the Private Payload Proof example verifier.",
+        help="Run the Private Payload Proof verifier.",
     )
     verify_private_payload_parser.add_argument(
         "--verbose",
@@ -273,6 +221,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print full verifier output.",
     )
     verify_private_payload_parser.set_defaults(func=command_verify_private_payload)
+
+    verify_ai_agent_parser = subparsers.add_parser(
+        "verify-ai-agent",
+        help="Run the AI Agent Proof verifier.",
+    )
+    verify_ai_agent_parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print full verifier output.",
+    )
+    verify_ai_agent_parser.set_defaults(func=command_verify_ai_agent)
 
     verify_all_parser = subparsers.add_parser(
         "verify-all",

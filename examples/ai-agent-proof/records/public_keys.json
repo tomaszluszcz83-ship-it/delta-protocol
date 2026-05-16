@@ -1,0 +1,8 @@
+{
+  "type": "delta_public_keys",
+  "protocol_version": "DELTA-0",
+  "example_version": "DELTA-0 v0.6.2",
+  "ai_agent_executor_pubkey": "ed25519:xAShPo1J-6w9pSSgvEdZQTyE4SEU5qVRV11JzBK0vro",
+  "human_supervisor_pubkey": "ed25519:z2gTn0kNN2Sw7_TRnvvDh8KwnmEfjLaB0C4Z1zxY8Mc",
+  "verifier_name": "Human Supervisor / QA Verification Key"
+}
