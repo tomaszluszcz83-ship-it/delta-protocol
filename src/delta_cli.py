@@ -19,8 +19,9 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
 
-CLI_VERSION = "DELTA CLI v0.7-alpha-attest-fixed"
+CLI_VERSION = "DELTA CLI v0.7.0-write-mode"
 PROTOCOL_NAME = "DELTA-0"
+GENESIS_PREV_ENTRY_HASH = "sha256:" + ("0" * 64)
 
 KEY_NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
 SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -159,6 +160,30 @@ def validate_ledger_id(ledger_id: str) -> None:
         raise ValueError(
             "Invalid ledger-id. Use 1-120 chars: letters, digits, dot, underscore, colon, slash, or dash."
         )
+
+
+def validate_ledger_seq(seq: int) -> None:
+    if not isinstance(seq, int):
+        raise ValueError("Invalid seq. seq must be an integer.")
+
+    if seq < 0:
+        raise ValueError("Invalid seq. seq must be >= 0.")
+
+
+def validate_checkpoint_seq(checkpoint_seq: int) -> None:
+    if not isinstance(checkpoint_seq, int):
+        raise ValueError("Invalid checkpoint-seq. checkpoint-seq must be an integer.")
+
+    if checkpoint_seq < 0:
+        raise ValueError("Invalid checkpoint-seq. checkpoint-seq must be >= 0.")
+
+
+def validate_entry_count(entry_count: int) -> None:
+    if not isinstance(entry_count, int):
+        raise ValueError("Invalid entry-count. entry-count must be an integer.")
+
+    if entry_count < 1:
+        raise ValueError("Invalid entry-count. entry-count must be >= 1.")
 
 
 def default_key_dir() -> Path:
@@ -341,6 +366,68 @@ def build_verifier_signature(
     }
 
 
+def build_ledger_entry(
+    *,
+    ledger_id: str,
+    seq: int,
+    prev_entry_hash: str,
+    claim_hash: str,
+    executor_sig_hash: str,
+    attestation_hash: str,
+    verifier_sig_hash: str,
+    included_at: str,
+) -> dict:
+    return {
+        "type": "delta_ledger_entry",
+        "protocol_version": PROTOCOL_NAME,
+        "ledger_id": ledger_id,
+        "seq": seq,
+        "prev_entry_hash": prev_entry_hash,
+        "claim_hash": claim_hash,
+        "executor_sig_hash": executor_sig_hash,
+        "attestation_hash": attestation_hash,
+        "verifier_sig_hash": verifier_sig_hash,
+        "included_at": included_at,
+    }
+
+
+def build_checkpoint(
+    *,
+    checkpoint_seq: int,
+    head_entry_hash: str,
+    entry_count: int,
+    published_at: str,
+) -> dict:
+    return {
+        "type": "delta_signed_checkpoint",
+        "protocol_version": PROTOCOL_NAME,
+        "checkpoint_seq": checkpoint_seq,
+        "head_entry_hash": head_entry_hash,
+        "entry_count": entry_count,
+        "published_at": published_at,
+    }
+
+
+def build_checkpoint_signature(
+    *,
+    public_key: str,
+    target_hash: str,
+    signature_bytes: bytes,
+    signed_at: str,
+) -> dict:
+    return {
+        "type": "delta_signature",
+        "protocol_version": PROTOCOL_NAME,
+        "role": "checkpoint_signer",
+        "alg": "Ed25519",
+        "target_type": "delta_signed_checkpoint",
+        "target_hash": target_hash,
+        "public_key": public_key,
+        "signature": "ed25519sig:" + b64url(signature_bytes),
+        "signed_at": signed_at,
+    }
+
+
 def require_equal(label: str, actual, expected) -> None:
     if actual != expected:
         raise ValueError(f"Invalid {label}. Expected {expected!r}, got {actual!r}.")
@@ -386,6 +473,69 @@ def verify_executor_signature_or_raise(claim: dict, executor_signature: dict) ->
         ) from exc
 
     return claim_hash, sha256_bytes(canonical_json_bytes(executor_signature))
+
+
+def verify_verifier_signature_or_raise(attestation: dict, verifier_signature: dict) -> tuple[str, str]:
+    require_equal("attestation.type", attestation.get("type"), "delta_attestation")
+    require_equal("attestation.protocol_version", attestation.get("protocol_version"), PROTOCOL_NAME)
+
+    require_equal("verifier_signature.type", verifier_signature.get("type"), "delta_signature")
+    require_equal("verifier_signature.protocol_version", verifier_signature.get("protocol_version"), PROTOCOL_NAME)
+    require_equal("verifier_signature.role", verifier_signature.get("role"), "verifier")
+    require_equal("verifier_signature.alg", verifier_signature.get("alg"), "Ed25519")
+    require_equal("verifier_signature.target_type", verifier_signature.get("target_type"), "delta_attestation")
+
+    attestation_public_key = attestation.get("verifier_pubkey")
+    signature_public_key = verifier_signature.get("public_key")
+
+    if not isinstance(attestation_public_key, str) or not attestation_public_key.startswith("ed25519:"):
+        raise ValueError("Invalid attestation.verifier_pubkey.")
+
+    if signature_public_key != attestation_public_key:
+        raise ValueError("Verifier signature public key does not match attestation verifier_pubkey.")
+
+    attestation_bytes = canonical_json_bytes(attestation)
+    attestation_hash = sha256_bytes(attestation_bytes)
+
+    if verifier_signature.get("target_hash") != attestation_hash:
+        raise ValueError("Verifier signature target_hash does not match attestation hash.")
+
+    signature_bytes = decode_prefixed_b64url(
+        "verifier_signature.signature",
+        verifier_signature.get("signature"),
+        "ed25519sig:",
+    )
+
+    try:
+        public_key = public_key_from_value(signature_public_key)
+        public_key.verify(signature_bytes, attestation_bytes)
+    except InvalidSignature as exc:
+        raise RuntimeError(
+            "Verifier signature verification failed. Refusing to build a ledger entry for an invalid attestation."
+        ) from exc
+
+    return attestation_hash, sha256_bytes(canonical_json_bytes(verifier_signature))
+
+
+def verify_ledger_entry_or_raise(ledger_entry: dict) -> str:
+    require_equal("ledger_entry.type", ledger_entry.get("type"), "delta_ledger_entry")
+    require_equal("ledger_entry.protocol_version", ledger_entry.get("protocol_version"), PROTOCOL_NAME)
+
+    validate_ledger_id(ledger_entry.get("ledger_id"))
+    validate_ledger_seq(ledger_entry.get("seq"))
+    validate_sha256_hash("ledger_entry.prev_entry_hash", ledger_entry.get("prev_entry_hash"))
+    validate_sha256_hash("ledger_entry.claim_hash", ledger_entry.get("claim_hash"))
+    validate_sha256_hash("ledger_entry.executor_sig_hash", ledger_entry.get("executor_sig_hash"))
+    validate_sha256_hash("ledger_entry.attestation_hash", ledger_entry.get("attestation_hash"))
+    validate_sha256_hash("ledger_entry.verifier_sig_hash", ledger_entry.get("verifier_sig_hash"))
+
+    if "included_at" not in ledger_entry:
+        raise ValueError("Missing ledger_entry.included_at.")
+
+    if "recorded_at" in ledger_entry:
+        raise ValueError("Invalid ledger_entry.recorded_at. Use included_at.")
+
+    return sha256_bytes(canonical_json_bytes(ledger_entry))
 
 
 def require_safe_private_key_location(private_path: Path) -> None:
@@ -802,6 +952,218 @@ def command_attest(args: argparse.Namespace) -> int:
         private_key = None
 
 
+def command_ledger(args: argparse.Namespace) -> int:
+    print_header("ledger")
+
+    try:
+        validate_ledger_id(args.ledger_id)
+        validate_ledger_seq(args.seq)
+        validate_sha256_hash("prev-entry-hash", args.prev_entry_hash)
+
+        claim_dir = Path(args.claim_dir).expanduser().resolve()
+        attest_dir = Path(args.attest_dir).expanduser().resolve()
+        out_dir = Path(args.out_dir).expanduser().resolve() if args.out_dir else Path.cwd().resolve()
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        ledger_entry_path = out_dir / "ledger_entry.json"
+
+        if ledger_entry_path.exists():
+            print("DELTA LEDGER RESULT: FAILED")
+            print("")
+            print("ERROR: Refusing to overwrite existing ledger_entry.json.")
+            print("")
+            print(f"Existing file: {ledger_entry_path}")
+            print("")
+            print("Use a different --out-dir or move the existing file first.")
+            return 1
+
+        claim = read_json_file(claim_dir / "claim.json", "claim.json")
+        executor_signature = read_json_file(claim_dir / "executor_signature.json", "executor_signature.json")
+        attestation = read_json_file(attest_dir / "attestation.json", "attestation.json")
+        verifier_signature = read_json_file(attest_dir / "verifier_signature.json", "verifier_signature.json")
+
+        claim_hash, executor_signature_hash = verify_executor_signature_or_raise(
+            claim,
+            executor_signature,
+        )
+
+        attestation_hash, verifier_signature_hash = verify_verifier_signature_or_raise(
+            attestation,
+            verifier_signature,
+        )
+
+        require_equal(
+            "attestation.target_claim_hash",
+            attestation.get("target_claim_hash"),
+            claim_hash,
+        )
+        require_equal(
+            "attestation.target_executor_sig_hash",
+            attestation.get("target_executor_sig_hash"),
+            executor_signature_hash,
+        )
+
+        claim_evidence_hash = claim.get("evidence_hash")
+        validate_sha256_hash("claim.evidence_hash", claim_evidence_hash)
+        require_equal(
+            "attestation.evidence_hash",
+            attestation.get("evidence_hash"),
+            claim_evidence_hash,
+        )
+
+        included_at = utc_now()
+        ledger_entry = build_ledger_entry(
+            ledger_id=args.ledger_id.strip(),
+            seq=args.seq,
+            prev_entry_hash=args.prev_entry_hash,
+            claim_hash=claim_hash,
+            executor_sig_hash=executor_signature_hash,
+            attestation_hash=attestation_hash,
+            verifier_sig_hash=verifier_signature_hash,
+            included_at=included_at,
+        )
+
+        ledger_entry_hash = sha256_bytes(canonical_json_bytes(ledger_entry))
+
+        write_json_exclusive(ledger_entry_path, ledger_entry)
+
+        print("DELTA LEDGER RESULT: OK")
+        print("")
+        print(f"Ledger entry written: {ledger_entry_path}")
+        print("")
+        print(f"Ledger ID: {args.ledger_id.strip()}")
+        print(f"Sequence: {args.seq}")
+        print(f"Previous entry hash: {args.prev_entry_hash}")
+        print(f"Claim hash: {claim_hash}")
+        print(f"Executor signature hash: {executor_signature_hash}")
+        print(f"Attestation hash: {attestation_hash}")
+        print(f"Verifier signature hash: {verifier_signature_hash}")
+        print(f"Ledger entry hash: {ledger_entry_hash}")
+        print("")
+        print("Security:")
+        print("- claim.json and executor_signature.json were loaded and verified.")
+        print("- attestation.json and verifier_signature.json were loaded and verified.")
+        print("- Attestation target hashes were checked against the Claim artifacts.")
+        print("- No private key was requested or loaded.")
+        print("- ledger_entry.json is hash-chain data only and is not signed.")
+        print("- Existing ledger_entry.json is not overwritten.")
+        return 0
+
+    except FileExistsError as exc:
+        print("DELTA LEDGER RESULT: FAILED")
+        print("")
+        print("ERROR: Refusing to overwrite existing ledger_entry.json.")
+        print(exc)
+        return 1
+    except Exception as exc:
+        print("DELTA LEDGER RESULT: FAILED")
+        print("")
+        print("ERROR:")
+        print(exc)
+        return 1
+
+
+def command_checkpoint(args: argparse.Namespace) -> int:
+    print_header("checkpoint")
+
+    private_key: Optional[Ed25519PrivateKey] = None
+
+    try:
+        validate_checkpoint_seq(args.checkpoint_seq)
+        validate_entry_count(args.entry_count)
+
+        ledger_dir = Path(args.ledger_dir).expanduser().resolve()
+        out_dir = Path(args.out_dir).expanduser().resolve() if args.out_dir else Path.cwd().resolve()
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        checkpoint_path = out_dir / "checkpoint.json"
+        checkpoint_signature_path = out_dir / "checkpoint_signature.json"
+
+        existing_paths = [path for path in [checkpoint_path, checkpoint_signature_path] if path.exists()]
+        if existing_paths:
+            print("DELTA CHECKPOINT RESULT: FAILED")
+            print("")
+            print("ERROR: Refusing to overwrite existing checkpoint files.")
+            print("")
+            for path in existing_paths:
+                print(f"Existing file: {path}")
+            print("")
+            print("Use a different --out-dir or move the existing files first.")
+            return 1
+
+        ledger_entry = read_json_file(ledger_dir / "ledger_entry.json", "ledger_entry.json")
+        head_entry_hash = verify_ledger_entry_or_raise(ledger_entry)
+
+        key_path = Path(args.key).expanduser().resolve()
+        private_key = load_ed25519_private_key(key_path)
+        checkpoint_pubkey = public_key_value(private_key)
+
+        published_at = utc_now()
+        checkpoint = build_checkpoint(
+            checkpoint_seq=args.checkpoint_seq,
+            head_entry_hash=head_entry_hash,
+            entry_count=args.entry_count,
+            published_at=published_at,
+        )
+
+        checkpoint_bytes = canonical_json_bytes(checkpoint)
+        checkpoint_hash = sha256_bytes(checkpoint_bytes)
+        checkpoint_signature_bytes = private_key.sign(checkpoint_bytes)
+
+        try:
+            private_key.public_key().verify(checkpoint_signature_bytes, checkpoint_bytes)
+        except InvalidSignature as exc:
+            raise RuntimeError("Internal checkpoint signature self-check failed.") from exc
+
+        checkpoint_signature = build_checkpoint_signature(
+            public_key=checkpoint_pubkey,
+            target_hash=checkpoint_hash,
+            signature_bytes=checkpoint_signature_bytes,
+            signed_at=published_at,
+        )
+
+        private_key = None
+        checkpoint_signature_bytes = bytes(checkpoint_signature_bytes)
+
+        write_json_exclusive(checkpoint_path, checkpoint)
+        write_json_exclusive(checkpoint_signature_path, checkpoint_signature)
+
+        print("DELTA CHECKPOINT RESULT: OK")
+        print("")
+        print(f"Checkpoint written: {checkpoint_path}")
+        print(f"Checkpoint signature written: {checkpoint_signature_path}")
+        print("")
+        print(f"Checkpoint sequence: {args.checkpoint_seq}")
+        print(f"Entry count: {args.entry_count}")
+        print(f"Head entry hash: {head_entry_hash}")
+        print(f"Checkpoint hash: {checkpoint_hash}")
+        print(f"Checkpoint signer public key: {checkpoint_pubkey}")
+        print("")
+        print("Security:")
+        print("- ledger_entry.json was loaded and hash-checked.")
+        print("- checkpoint.json does not contain an embedded signature.")
+        print("- checkpoint_signature.json is a detached signature envelope.")
+        print("- The signature input is canonical JSON bytes of checkpoint.json.")
+        print("- Existing checkpoint files are not overwritten.")
+        print("- The checkpoint signer private key was loaded only for signing and was not printed.")
+        return 0
+
+    except FileExistsError as exc:
+        print("DELTA CHECKPOINT RESULT: FAILED")
+        print("")
+        print("ERROR: Refusing to overwrite existing checkpoint files.")
+        print(exc)
+        return 1
+    except Exception as exc:
+        print("DELTA CHECKPOINT RESULT: FAILED")
+        print("")
+        print("ERROR:")
+        print(exc)
+        return 1
+    finally:
+        private_key = None
+
+
 def command_verify_genesis(args: argparse.Namespace) -> int:
     print_header("verify-genesis")
 
@@ -980,6 +1342,76 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output directory for attestation.json and verifier_signature.json. Default: current directory.",
     )
     attest_parser.set_defaults(func=command_attest)
+
+    ledger_parser = subparsers.add_parser(
+        "ledger",
+        help="Create a DELTA Ledger Entry from Claim and Attestation artifacts.",
+    )
+    ledger_parser.add_argument(
+        "--claim-dir",
+        required=True,
+        help="Directory containing claim.json and executor_signature.json.",
+    )
+    ledger_parser.add_argument(
+        "--attest-dir",
+        required=True,
+        help="Directory containing attestation.json and verifier_signature.json.",
+    )
+    ledger_parser.add_argument(
+        "--ledger-id",
+        required=True,
+        help="Ledger identifier.",
+    )
+    ledger_parser.add_argument(
+        "--seq",
+        required=True,
+        type=int,
+        help="Sequential ledger entry number.",
+    )
+    ledger_parser.add_argument(
+        "--prev-entry-hash",
+        required=True,
+        help="Previous ledger entry hash in format sha256:<64 lowercase hex characters>.",
+    )
+    ledger_parser.add_argument(
+        "--out-dir",
+        default=None,
+        help="Output directory for ledger_entry.json. Default: current directory.",
+    )
+    ledger_parser.set_defaults(func=command_ledger)
+
+    checkpoint_parser = subparsers.add_parser(
+        "checkpoint",
+        help="Create a DELTA Signed Checkpoint and detached Checkpoint Signer signature.",
+    )
+    checkpoint_parser.add_argument(
+        "--ledger-dir",
+        required=True,
+        help="Directory containing ledger_entry.json.",
+    )
+    checkpoint_parser.add_argument(
+        "--checkpoint-seq",
+        required=True,
+        type=int,
+        help="Checkpoint sequence number.",
+    )
+    checkpoint_parser.add_argument(
+        "--entry-count",
+        required=True,
+        type=int,
+        help="Number of ledger entries covered by this checkpoint.",
+    )
+    checkpoint_parser.add_argument(
+        "--key",
+        required=True,
+        help="Path to the Checkpoint Signer Ed25519 private key PEM.",
+    )
+    checkpoint_parser.add_argument(
+        "--out-dir",
+        default=None,
+        help="Output directory for checkpoint.json and checkpoint_signature.json. Default: current directory.",
+    )
+    checkpoint_parser.set_defaults(func=command_checkpoint)
 
     verify_genesis_parser = subparsers.add_parser(
         "verify-genesis",
