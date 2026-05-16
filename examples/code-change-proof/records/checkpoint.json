@@ -1,11 +1,11 @@
 {
   "type": "delta_signed_checkpoint",
   "protocol_version": "DELTA-0",
-  "example_version": "DELTA-0 v0.5.3",
+  "example_version": "DELTA-0 v0.5.4",
   "ledger_id": "delta-ledger:code-change-proof-example",
   "checkpoint_seq": 1,
   "entry_count": 1,
-  "head_entry_hash": "sha256:d000f64b0183af348f434cb1ce905229dc12a539d70d8b8fc809428c2d9bbe72",
-  "verifier_pubkey": "ed25519:x_KHMz8tLLQTZDgGwnXHxhp7yDqf95xO_K8UntbdX14",
-  "timestamp": "2026-05-16T11:39:29Z"
+  "head_entry_hash": "sha256:bcc4478a6c99c5f9dd3f08c73bbf2daa4ab1276c7720676d45d2680b239dc4bd",
+  "verifier_pubkey": "ed25519:nSqD7OwyLQPJQ3u0cTNpvSPITAefySZGhB1sbuo098w",
+  "timestamp": "2026-05-16T12:23:16Z"
 }

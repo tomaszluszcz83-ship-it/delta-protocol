@@ -1,4 +1,4 @@
-﻿# DELTA-0 Code Change Proof Example
+# DELTA-0 Code Change Proof Example
 
 This example demonstrates how DELTA can prove a code change using Git commit hashes and CI test logs.
 
