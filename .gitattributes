@@ -1,11 +1,21 @@
-# DELTA Protocol repository line-ending policy
+# DELTA Protocol byte-stability policy.
+# Verification hashes are computed over exact bytes.
+# These rules prevent Windows CRLF checkout from breaking public proof hashes.
 
-# Source and documentation files should be stable LF text.
-*.md text eol=lf
+spec/** text eol=lf
+docs/spec/** text eol=lf
+
 *.py text eol=lf
-*.json text eol=lf
-*.txt text eol=lf
+README.md text eol=lf
 
-# DELTA evidence files are protocol evidence bytes.
-# Git must not rewrite them because their raw bytes are hashed.
-examples/code-change-proof/evidence/* -text
+docs/**/*.html text eol=lf
+docs/**/*.css text eol=lf
+docs/**/*.js text eol=lf
+docs/**/*.md text eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.zip binary
