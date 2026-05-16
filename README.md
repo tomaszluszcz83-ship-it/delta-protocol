@@ -1,4 +1,4 @@
-﻿# DELTA Protocol
+# DELTA Protocol
 
 Proof of Change for the Internet.
 
@@ -35,6 +35,7 @@ Expected result:
 Genesis verifier: OK
 Code Change Proof verifier: OK
 Private Payload Proof verifier: OK
+AI Agent Proof verifier: OK
 DELTA CLI RESULT: OK
 ```
 
@@ -44,15 +45,59 @@ For individual verification:
 python src/delta_cli.py verify-genesis
 python src/delta_cli.py verify-code-change
 python src/delta_cli.py verify-private-payload
+python src/delta_cli.py verify-ai-agent
 ```
 
 Current CLI milestone:
 
-`v0.6-alpha-cli`
+`v0.6.2-ai-agent-proof`
 
 ---
 
-## Developer Adoption Example
+## Developer Adoption Examples
+
+DELTA includes three public adoption examples covering code, business privacy, and AI accountability.
+
+These examples show that DELTA is not limited to one narrow use case. It can prove change across software systems, private business records, and autonomous AI execution workflows.
+
+| Example | Path | What it demonstrates |
+|---|---|---|
+| Code Change Proof | `examples/code-change-proof` | Git & CI/CD proof of a code change |
+| Private Payload Proof | `examples/private-payload-proof` | Blind Auditing / NDA proof without exposing private bytes |
+| AI Agent Proof | `examples/ai-agent-proof` | Machine Accountability & AI Executions |
+
+Run all public verifiers through the DELTA CLI:
+
+```bash
+python src/delta_cli.py verify-all
+```
+
+Expected result:
+
+```text
+Genesis verifier: OK
+Code Change Proof verifier: OK
+Private Payload Proof verifier: OK
+AI Agent Proof verifier: OK
+DELTA CLI RESULT: OK
+```
+
+Current public milestones:
+
+```text
+v0.5.2-genesis-rc
+v0.5.3-code-change-proof
+v0.5.4-evidence-line-endings
+v0.6-alpha-cli
+v0.6.1-private-payload-proof
+v0.6.2-ai-agent-proof
+```
+
+Together, these examples position DELTA as a Proof of Change standard for code, business, and artificial intelligence.
+
+---
+
+## Code Change Proof Example
 
 The first practical DELTA adoption example is available here:
 
@@ -160,6 +205,69 @@ This example demonstrates:
 - public verification without private payload disclosure
 
 This example does not modify or replace the DELTA-0 Genesis Release Candidate v0.5.2.
+
+---
+
+## AI Agent Proof Example
+
+DELTA also includes an AI accountability adoption example:
+
+`examples/ai-agent-proof`
+
+This example shows how DELTA can prove that an AI agent performed a declared analytical task, produced an output, signed the Claim as Executor, and had the output reviewed by a Human Supervisor / QA Verification Key.
+
+Core principle:
+
+```text
+Machine accountability by proof, not trust.
+```
+
+Flow:
+
+```text
+Before: Q3 financial dataset and prompt
+Action: AI agent anomaly analysis
+After: AI-generated anomaly report
+Evidence: agent execution trace hash
+Executor: AI Agent X-77 Verification Key
+Verifier: Human Supervisor / QA Verification Key
+Result: reviewed AI Agent Proof
+```
+
+Run the example verifier:
+
+```bash
+python examples/ai-agent-proof/ai_agent_public_verifier.py
+```
+
+Or use DELTA CLI:
+
+```bash
+python src/delta_cli.py verify-ai-agent
+python src/delta_cli.py verify-all
+```
+
+Expected result:
+
+```text
+DELTA AI AGENT PROOF VERIFIER RESULT: OK
+```
+
+This example demonstrates:
+
+- AI agent identity as Executor
+- before state containing the prompt and Q3 financial dataset
+- after state containing the AI-generated anomaly report
+- execution trace hash binding
+- token usage and execution duration metadata
+- Human Supervisor / QA attestation
+- Ledger Entry
+- Signed Checkpoint
+- Chain Proof
+- public verification of AI execution accountability
+
+This example does not prove that the AI output is objectively true.
+It proves the cryptographic accountability chain around the declared AI execution.
 
 ---
 
@@ -283,13 +391,33 @@ DELTA-0/
     │       ├── hashes.json
     │       ├── hashes.txt
     │       └── evidence_hash.txt
-    └── private-payload-proof/
+    ├── private-payload-proof/
+    │   ├── README.md
+    │   ├── private_payload_public_verifier.py
+    │   └── records/
+    │       ├── before_state.json
+    │       ├── after_state.json
+    │       ├── private_payload_manifest.json
+    │       ├── verification_policy.json
+    │       ├── public_keys.json
+    │       ├── claim.json
+    │       ├── executor_signature.json
+    │       ├── attestation.json
+    │       ├── verifier_signature.json
+    │       ├── ledger_entry.json
+    │       ├── ledger.json
+    │       ├── chain_proof.json
+    │       ├── checkpoint.json
+    │       ├── checkpoint_signature.json
+    │       ├── hashes.json
+    │       └── hashes.txt
+    └── ai-agent-proof/
         ├── README.md
-        ├── private_payload_public_verifier.py
+        ├── ai_agent_public_verifier.py
         └── records/
             ├── before_state.json
             ├── after_state.json
-            ├── private_payload_manifest.json
+            ├── agent_execution.json
             ├── verification_policy.json
             ├── public_keys.json
             ├── claim.json
@@ -381,6 +509,27 @@ Evidence by hash, not exposure.
 
 ---
 
+## AI agent accountability rule
+
+DELTA can prove AI-agent execution accountability without claiming that the AI output is absolute truth.
+
+For the AI Agent Proof example, the AI agent is the Executor. The proof binds:
+
+- raw prompt and input data
+- AI-generated output
+- execution trace
+- AI agent executor signature
+- Human Supervisor / QA attestation
+- Ledger Entry
+- Signed Checkpoint
+- Chain Proof
+
+Rule:
+
+Machine accountability by proof, not trust.
+
+---
+
 ## How to verify with DELTA CLI
 
 Run all public verifiers:
@@ -395,6 +544,7 @@ Expected final result:
 Genesis verifier: OK
 Code Change Proof verifier: OK
 Private Payload Proof verifier: OK
+AI Agent Proof verifier: OK
 DELTA CLI RESULT: OK
 ```
 
@@ -404,6 +554,7 @@ Run individual verifiers:
 python src/delta_cli.py verify-genesis
 python src/delta_cli.py verify-code-change
 python src/delta_cli.py verify-private-payload
+python src/delta_cli.py verify-ai-agent
 ```
 
 Show CLI version:
@@ -470,6 +621,22 @@ Expected final result:
 
 ```text
 DELTA PRIVATE PAYLOAD PROOF VERIFIER RESULT: OK
+```
+
+---
+
+## How to verify the AI Agent Proof example directly
+
+Run:
+
+```bash
+python examples/ai-agent-proof/ai_agent_public_verifier.py
+```
+
+Expected final result:
+
+```text
+DELTA AI AGENT PROOF VERIFIER RESULT: OK
 ```
 
 ---
@@ -555,6 +722,38 @@ The Private Payload Proof verifier checks:
 
 ---
 
+## What the AI Agent Proof verifier checks
+
+The AI Agent Proof verifier checks:
+
+1. The example does not contain private keys or secret files.
+2. `before_state.json` contains the raw prompt and Q3 financial input data.
+3. `after_state.json` contains the AI analyst output report.
+4. `agent_execution.json` declares autonomous AI identity and human review.
+5. The execution trace includes tools, token usage, and duration.
+6. The AI output contains two anomalies and limitation language.
+7. Delta Claim binds:
+   - before state hash
+   - after state hash
+   - AI agent executor key
+   - execution trace hash
+8. AI agent Executor signature verifies against the Delta Claim.
+9. Verification policy defines Human Supervisor / QA checks.
+10. Human Supervisor / QA Attestation binds the agent output and policy.
+11. Human Supervisor / QA signature verifies against the Attestation.
+12. Ledger Entry binds:
+    - `claim_hash`
+    - `executor_sig_hash`
+    - `attestation_hash`
+    - `verifier_sig_hash`
+    - `agent_execution_hash`
+13. Checkpoint hash is recomputed.
+14. Checkpoint signature verifies.
+15. Chain proof links the AI Agent entry to the checkpoint.
+16. `hashes.json` and `hashes.txt` match recomputed hashes.
+
+---
+
 ## Cryptographic model
 
 DELTA-0 uses:
@@ -607,7 +806,9 @@ DELTA_VERIFIED does not mean:
 - legal ownership,
 - financial value,
 - token ownership,
-- cryptocurrency issuance.
+- cryptocurrency issuance,
+- that an AI output is necessarily true,
+- that an AI agent had no hallucination risk.
 
 DELTA is not a magic truth machine.
 
@@ -668,6 +869,7 @@ Current public protocol milestones:
 - `v0.5.4-evidence-line-endings`
 - `v0.6-alpha-cli`
 - `v0.6.1-private-payload-proof`
+- `v0.6.2-ai-agent-proof`
 
 ---
 
