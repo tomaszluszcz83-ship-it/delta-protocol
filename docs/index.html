@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DELTA Web Explorer</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">DELTA Protocol / Web Explorer v0.8.0 MVP</p>
+        <h1>Proof of Change Verifier</h1>
+        <p class="subtitle">
+          Browser-only verification for DELTA JSON artifacts.
+          No backend. No upload. No account. No token.
+        </p>
+      </div>
+      <div class="status-card">
+        <span class="dot"></span>
+        <strong>Client-side only</strong>
+        <small>Your JSON stays in this browser tab.</small>
+      </div>
+    </header>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Verify a payload/signature pair</h2>
+        <p>
+          Paste a DELTA payload JSON on the left and its detached
+          <code>delta_signature</code> envelope on the right.
+        </p>
+      </div>
+
+      <div class="grid">
+        <div class="field">
+          <label for="payloadInput">Payload JSON</label>
+          <textarea id="payloadInput" spellcheck="false" placeholder='Paste claim.json, attestation.json, or checkpoint.json here'></textarea>
+          <div class="file-row">
+            <input id="payloadFile" type="file" accept=".json,application/json">
+            <button id="clearPayload" class="secondary" type="button">Clear</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="signatureInput">Signature JSON</label>
+          <textarea id="signatureInput" spellcheck="false" placeholder='Paste executor_signature.json, verifier_signature.json, or checkpoint_signature.json here'></textarea>
+          <div class="file-row">
+            <input id="signatureFile" type="file" accept=".json,application/json">
+            <button id="clearSignature" class="secondary" type="button">Clear</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="verifyPair" type="button">Verify</button>
+        <button id="loadExample" class="secondary" type="button">Load tiny example shell</button>
+      </div>
+    </section>
+
+    <section id="result" class="result neutral">
+      <div class="result-title">Waiting for JSON</div>
+      <div class="result-body">
+        Paste or load two JSON files, then click Verify.
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Bundle consistency checks</h2>
+        <p>
+          Optional: paste the public chain artifacts below to check hashes across
+          claim, attestation, ledger entry, and checkpoint.
+        </p>
+      </div>
+
+      <details>
+        <summary>Open bundle checker</summary>
+
+        <div class="bundle-grid">
+          <div class="field small">
+            <label for="claimJson">claim.json</label>
+            <textarea id="claimJson" spellcheck="false"></textarea>
+          </div>
+          <div class="field small">
+            <label for="executorSigJson">executor_signature.json</label>
+            <textarea id="executorSigJson" spellcheck="false"></textarea>
+          </div>
+          <div class="field small">
+            <label for="attestationJson">attestation.json</label>
+            <textarea id="attestationJson" spellcheck="false"></textarea>
+          </div>
+          <div class="field small">
+            <label for="verifierSigJson">verifier_signature.json</label>
+            <textarea id="verifierSigJson" spellcheck="false"></textarea>
+          </div>
+          <div class="field small">
+            <label for="ledgerJson">ledger_entry.json</label>
+            <textarea id="ledgerJson" spellcheck="false"></textarea>
+          </div>
+          <div class="field small">
+            <label for="checkpointJson">checkpoint.json</label>
+            <textarea id="checkpointJson" spellcheck="false"></textarea>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="verifyBundle" type="button">Verify bundle hashes</button>
+        </div>
+
+        <pre id="bundleOutput" class="log">Bundle checker is idle.</pre>
+      </details>
+    </section>
+
+    <section class="security">
+      <h2>Security model</h2>
+      <ul>
+        <li>This page has no backend endpoint and no upload action.</li>
+        <li>The application code does not call <code>fetch</code>, <code>XMLHttpRequest</code>, analytics, forms, cookies, or beacons.</li>
+        <li>Hashes are computed over deterministic canonical JSON bytes.</li>
+        <li>Ed25519 signatures are verified over canonical JSON bytes, not over prehashed bytes.</li>
+        <li>For production hardening, vendor and pin the JS dependencies locally under <code>docs/vendor/</code>.</li>
+      </ul>
+    </section>
+  </main>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
