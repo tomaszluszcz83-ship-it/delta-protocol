@@ -14,14 +14,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
+from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 
-CLI_VERSION = "DELTA CLI v0.7-alpha-keygen"
+CLI_VERSION = "DELTA CLI v0.7-alpha-claim"
 PROTOCOL_NAME = "DELTA-0"
 
 KEY_NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
+SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 @dataclass(frozen=True)
@@ -103,6 +105,18 @@ def validate_key_name(name: str) -> None:
         )
 
 
+def validate_sha256_hash(label: str, value: str) -> None:
+    if not SHA256_RE.match(value):
+        raise ValueError(
+            f"Invalid {label}. Expected format: sha256:<64 lowercase hex characters>."
+        )
+
+
+def validate_action(action: str) -> None:
+    if not action or not action.strip():
+        raise ValueError("Invalid action. Action must not be empty.")
+
+
 def default_key_dir() -> Path:
     return Path.home() / ".delta" / "keys"
 
@@ -123,6 +137,40 @@ def private_key_pem(private_key: Ed25519PrivateKey) -> bytes:
     )
 
 
+def load_ed25519_private_key(path: Path) -> Ed25519PrivateKey:
+    if not path.exists():
+        raise FileNotFoundError(f"Private key file does not exist: {path}")
+
+    if not path.is_file():
+        raise ValueError(f"Private key path is not a file: {path}")
+
+    root = repo_root()
+    if is_relative_to(path, root):
+        raise RuntimeError(
+            "Refusing to load a private key from inside the repository.\n\n"
+            "Use a key generated outside the repository, for example:\n"
+            "~/.delta/keys/<name>.ed25519.private.pem"
+        )
+
+    try:
+        pem_bytes = path.read_bytes()
+    except Exception as exc:
+        raise RuntimeError(f"Could not read private key file: {path}") from exc
+
+    try:
+        loaded = serialization.load_pem_private_key(pem_bytes, password=None)
+    except Exception as exc:
+        pem_bytes = b""
+        raise RuntimeError("Could not load Ed25519 private key from PEM file.") from exc
+
+    pem_bytes = b""
+
+    if not isinstance(loaded, Ed25519PrivateKey):
+        raise TypeError("Private key PEM is not an Ed25519 private key.")
+
+    return loaded
+
+
 def build_public_key_record(*, key_name: str, role: str, public_key: str) -> dict:
     fingerprint = sha256_bytes(public_key.encode("utf-8"))
 
@@ -136,6 +184,47 @@ def build_public_key_record(*, key_name: str, role: str, public_key: str) -> dic
         "public_key": public_key,
         "public_key_fingerprint": fingerprint,
         "created_at": utc_now(),
+    }
+
+
+def build_claim(
+    *,
+    before_hash: str,
+    action: str,
+    after_hash: str,
+    evidence_hash: str,
+    executor_pubkey: str,
+    created_at: str,
+) -> dict:
+    return {
+        "type": "delta_claim",
+        "protocol_version": PROTOCOL_NAME,
+        "created_at": created_at,
+        "executor_pubkey": executor_pubkey,
+        "before_hash": before_hash,
+        "action": action,
+        "after_hash": after_hash,
+        "evidence_hash": evidence_hash,
+    }
+
+
+def build_executor_signature(
+    *,
+    public_key: str,
+    target_hash: str,
+    signature_bytes: bytes,
+    signed_at: str,
+) -> dict:
+    return {
+        "type": "delta_signature",
+        "protocol_version": PROTOCOL_NAME,
+        "role": "executor",
+        "alg": "Ed25519",
+        "target_type": "delta_claim",
+        "target_hash": target_hash,
+        "public_key": public_key,
+        "signature": "ed25519sig:" + b64url(signature_bytes),
+        "signed_at": signed_at,
     }
 
 
@@ -283,10 +372,15 @@ def command_keygen(args: argparse.Namespace) -> int:
             write_json_exclusive(public_json_path, public_record)
             write_text_exclusive(public_txt_path, public_key + "\n")
         except Exception as exc:
+            private_key = None
+            private_pem = b""
             raise RuntimeError(
                 "Private key was created, but writing public key files failed. "
                 f"Private key location: {private_path}"
             ) from exc
+
+        private_key = None
+        private_pem = b""
 
         print("DELTA KEYGEN RESULT: OK")
         print("")
@@ -328,6 +422,103 @@ def command_keygen(args: argparse.Namespace) -> int:
         print("ERROR:")
         print(exc)
         return 1
+
+
+def command_claim(args: argparse.Namespace) -> int:
+    print_header("claim")
+
+    private_key: Optional[Ed25519PrivateKey] = None
+
+    try:
+        validate_sha256_hash("before-hash", args.before_hash)
+        validate_sha256_hash("after-hash", args.after_hash)
+        validate_sha256_hash("evidence-hash", args.evidence_hash)
+        validate_action(args.action)
+
+        key_path = Path(args.key).expanduser().resolve()
+        out_dir = Path(args.out_dir).expanduser().resolve() if args.out_dir else Path.cwd().resolve()
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        claim_path = out_dir / "claim.json"
+        signature_path = out_dir / "executor_signature.json"
+
+        existing_paths = [path for path in [claim_path, signature_path] if path.exists()]
+        if existing_paths:
+            print("DELTA CLAIM RESULT: FAILED")
+            print("")
+            print("ERROR: Refusing to overwrite existing claim files.")
+            print("")
+            for path in existing_paths:
+                print(f"Existing file: {path}")
+            print("")
+            print("Use a different --out-dir or move the existing files first.")
+            return 1
+
+        private_key = load_ed25519_private_key(key_path)
+        executor_pubkey = public_key_value(private_key)
+
+        created_at = utc_now()
+        claim = build_claim(
+            before_hash=args.before_hash,
+            action=args.action.strip(),
+            after_hash=args.after_hash,
+            evidence_hash=args.evidence_hash,
+            executor_pubkey=executor_pubkey,
+            created_at=created_at,
+        )
+
+        claim_bytes = canonical_json_bytes(claim)
+        claim_hash = sha256_bytes(claim_bytes)
+        signature_bytes = private_key.sign(claim_bytes)
+
+        try:
+            private_key.public_key().verify(signature_bytes, claim_bytes)
+        except InvalidSignature as exc:
+            raise RuntimeError("Internal signature self-check failed.") from exc
+
+        signature_envelope = build_executor_signature(
+            public_key=executor_pubkey,
+            target_hash=claim_hash,
+            signature_bytes=signature_bytes,
+            signed_at=created_at,
+        )
+
+        private_key = None
+        signature_bytes = bytes(signature_bytes)
+
+        write_json_exclusive(claim_path, claim)
+        write_json_exclusive(signature_path, signature_envelope)
+
+        print("DELTA CLAIM RESULT: OK")
+        print("")
+        print(f"Claim written: {claim_path}")
+        print(f"Executor signature written: {signature_path}")
+        print("")
+        print(f"Claim hash: {claim_hash}")
+        print(f"Executor public key: {executor_pubkey}")
+        print("")
+        print("Security:")
+        print("- claim.json does not contain an embedded signature.")
+        print("- executor_signature.json is a detached signature envelope.")
+        print("- The signature input is canonical JSON bytes of claim.json.")
+        print("- Existing claim files are not overwritten.")
+        print("- The private key was loaded only for signing and was not printed.")
+        return 0
+
+    except FileExistsError as exc:
+        print("DELTA CLAIM RESULT: FAILED")
+        print("")
+        print("ERROR: Refusing to overwrite existing claim files.")
+        print(exc)
+        return 1
+    except Exception as exc:
+        print("DELTA CLAIM RESULT: FAILED")
+        print("")
+        print("ERROR:")
+        print(exc)
+        return 1
+    finally:
+        private_key = None
 
 
 def command_verify_genesis(args: argparse.Namespace) -> int:
@@ -431,6 +622,42 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output directory. Default: ~/.delta/keys. Private keys are refused inside the repository.",
     )
     keygen_parser.set_defaults(func=command_keygen)
+
+    claim_parser = subparsers.add_parser(
+        "claim",
+        help="Create a DELTA Claim and detached Executor signature.",
+    )
+    claim_parser.add_argument(
+        "--before-hash",
+        required=True,
+        help="Before-state hash in format sha256:<64 lowercase hex characters>.",
+    )
+    claim_parser.add_argument(
+        "--action",
+        required=True,
+        help="Declared action/change description.",
+    )
+    claim_parser.add_argument(
+        "--after-hash",
+        required=True,
+        help="After-state hash in format sha256:<64 lowercase hex characters>.",
+    )
+    claim_parser.add_argument(
+        "--evidence-hash",
+        required=True,
+        help="Evidence hash in format sha256:<64 lowercase hex characters>.",
+    )
+    claim_parser.add_argument(
+        "--key",
+        required=True,
+        help="Path to the Executor Ed25519 private key PEM.",
+    )
+    claim_parser.add_argument(
+        "--out-dir",
+        default=None,
+        help="Output directory for claim.json and executor_signature.json. Default: current directory.",
+    )
+    claim_parser.set_defaults(func=command_claim)
 
     verify_genesis_parser = subparsers.add_parser(
         "verify-genesis",
