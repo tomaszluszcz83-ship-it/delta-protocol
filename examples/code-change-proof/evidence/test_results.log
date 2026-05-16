@@ -1,0 +1,23 @@
+﻿DELTA-0 Code Change Proof Example
+
+Use case:
+A developer fixed a failing payment validation test.
+
+Before:
+Git commit: 1111111111111111111111111111111111111111
+Test result: FAIL
+Failing test: test_payment_validation_timeout
+
+Action:
+Fixed payment gateway timeout validation logic.
+
+After:
+Git commit: 2222222222222222222222222222222222222222
+Test result: PASS
+Passing test: test_payment_validation_timeout
+
+CI verifier:
+Local CI Server Verification Key
+
+Result:
+FAIL -> PASS

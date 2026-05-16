@@ -1,0 +1,9 @@
+{
+  "type": "code_state",
+  "protocol_version": "DELTA-0",
+  "example_version": "DELTA-0 v0.5.3",
+  "system": "git",
+  "git_commit": "1111111111111111111111111111111111111111",
+  "test_name": "test_payment_validation_timeout",
+  "test_result": "FAIL"
+}

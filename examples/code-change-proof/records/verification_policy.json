@@ -1,0 +1,14 @@
+{
+  "type": "verification_policy",
+  "protocol_version": "DELTA-0",
+  "example_version": "DELTA-0 v0.5.3",
+  "policy_id": "delta-policy:code-change-proof-local-ci-v0.5.3",
+  "verifier": "Local CI Server Verification Key",
+  "required_checks": [
+    "before_state.test_result == FAIL",
+    "after_state.test_result == PASS",
+    "evidence log contains FAIL -> PASS",
+    "claim evidence_hash matches test_results.log SHA-256",
+    "attestation result is VERIFIED"
+  ]
+}
