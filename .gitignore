@@ -7,3 +7,10 @@ release/test_extract/
 __pycache__/
 *.pyc
 .env
+
+# Python packaging artifacts
+*.egg-info/
+build/
+dist/
+__pycache__/
+*.py[cod]
