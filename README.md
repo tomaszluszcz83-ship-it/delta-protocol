@@ -1,31 +1,86 @@
 # DELTA Protocol
 
-Proof of Change for the Internet.
+**The internet can prove ownership. DELTA proves change.**
 
-DELTA is an open, zero-token cryptographic protocol for proving digital change.
+🔎 **DELTA Web Explorer:** https://tomaszluszcz83-ship-it.github.io/delta-protocol/
 
-DELTA is not a cryptocurrency.
-DELTA is not a token.
-DELTA is not an NFT project.
-DELTA is not a blockchain-dependent application.
-DELTA is not a SaaS platform.
-DELTA is not a marketplace.
+DELTA-0 is a zero-token cryptographic **Proof-of-Change** protocol for verifiable digital actions.
 
-DELTA is a protocol layer for cryptographically proving that a declared change was made, evidenced, signed, verified, and recorded in a tamper-evident ledger.
+It provides a portable record chain:
 
-Core statement:
+```text
+Claim -> Attestation -> Ledger Entry -> Signed Checkpoint
+```
 
-The internet can prove ownership.
-DELTA proves change.
+DELTA is not a cryptocurrency, token, marketplace, SaaS platform, or user-account system. It is a cryptographic protocol and reference implementation for creating, verifying, and publishing tamper-evident records of declared digital change.
 
 ---
 
-## Quick start
+## What DELTA Proves
 
-Run the DELTA CLI from the repository root:
+DELTA proves cryptographic consistency.
+
+A valid DELTA proof can show that:
+
+- a `Claim` was signed by an `Executor` key,
+- an `Attestation` was signed by a `Verifier` key,
+- a `Ledger Entry` binds the Claim and Attestation hashes,
+- a `Signed Checkpoint` commits to a ledger head,
+- the presented proof objects have not been modified without detection.
+
+DELTA does **not** prove absolute truth about the physical world.
+
+DELTA does not prove that:
+
+- a human statement is true,
+- private evidence was not fabricated before hashing,
+- an AI output is factually correct,
+- a compromised key was not misused before revocation,
+- a legal or compliance conclusion is automatically valid.
+
+This boundary is intentional. DELTA is a cryptographic accountability layer, not a magic truth machine.
+
+---
+
+## Public Web Explorer
+
+The DELTA Web Explorer verifies public DELTA JSON artifacts directly in the browser:
+
+🔎 https://tomaszluszcz83-ship-it.github.io/delta-protocol/
+
+Security model:
+
+- no backend,
+- no account system,
+- no token,
+- no database,
+- no JSON upload endpoint,
+- browser-side verification.
+
+The Web Explorer verifies detached signature pairs such as:
+
+```text
+claim.json + executor_signature.json
+attestation.json + verifier_signature.json
+checkpoint.json + checkpoint_signature.json
+```
+
+It can also check public hash consistency across:
+
+```text
+Claim -> Attestation -> Ledger Entry -> Signed Checkpoint
+```
+
+---
+
+## Fresh Clone Quick Start
+
+Use this path when testing DELTA from a clean machine.
 
 ```bash
-python src/delta_cli.py version
+git clone https://github.com/tomaszluszcz83-ship-it/delta-protocol.git
+cd delta-protocol
+python -m pip install cryptography
 python src/delta_cli.py verify-all
 ```
 
@@ -36,21 +91,176 @@ Genesis verifier: OK
 Code Change Proof verifier: OK
 Private Payload Proof verifier: OK
 AI Agent Proof verifier: OK
+
 DELTA CLI RESULT: OK
 ```
 
-For individual verification:
+No local keys are required for `verify-all`. The command verifies the public examples included in the repository.
+
+---
+
+## CLI Version
 
 ```bash
-python src/delta_cli.py verify-genesis
-python src/delta_cli.py verify-code-change
-python src/delta_cli.py verify-private-payload
-python src/delta_cli.py verify-ai-agent
+python src/delta_cli.py version
 ```
 
-Current CLI milestone:
+Example output:
 
-`v0.6.2-ai-agent-proof`
+```text
+DELTA CLI v0.7.0-write-mode
+Protocol: DELTA-0
+Repository root: ...
+```
+
+---
+
+## Create a Claim
+
+The minimal write flow begins with a local Executor key and a Claim.
+
+### Bash / macOS / Linux / Git Bash
+
+```bash
+python src/delta_cli.py keygen --name demo-executor
+
+python src/delta_cli.py claim \
+  --before-hash sha256:1111111111111111111111111111111111111111111111111111111111111111 \
+  --action "demo change" \
+  --after-hash sha256:2222222222222222222222222222222222222222222222222222222222222222 \
+  --evidence-hash sha256:3333333333333333333333333333333333333333333333333333333333333333 \
+  --key ~/.delta/keys/demo-executor.ed25519.private.pem \
+  --out-dir ./demo-claim
+```
+
+### Windows PowerShell
+
+```powershell
+python src/delta_cli.py keygen --name demo-executor
+
+$keyPath = "$env:USERPROFILE\.delta\keys\demo-executor.ed25519.private.pem"
+
+python src/delta_cli.py claim `
+  --before-hash sha256:1111111111111111111111111111111111111111111111111111111111111111 `
+  --action "demo change" `
+  --after-hash sha256:2222222222222222222222222222222222222222222222222222222222222222 `
+  --evidence-hash sha256:3333333333333333333333333333333333333333333333333333333333333333 `
+  --key $keyPath `
+  --out-dir .\demo-claim
+```
+
+This produces:
+
+```text
+demo-claim/
+  claim.json
+  executor_signature.json
+```
+
+The private key is not printed to the screen. By default, keys are written outside the repository under:
+
+```text
+~/.delta/keys/
+```
+
+On Windows:
+
+```text
+%USERPROFILE%\.delta\keys\
+```
+
+Do not commit private keys.
+
+---
+
+## Full Write Mode
+
+DELTA CLI v0.7.0 supports the full local proof-generation flow:
+
+```text
+keygen -> claim -> attest -> ledger -> checkpoint
+```
+
+The flow produces the complete DELTA-0 proof chain:
+
+```text
+claim.json
+executor_signature.json
+attestation.json
+verifier_signature.json
+ledger_entry.json
+checkpoint.json
+checkpoint_signature.json
+```
+
+The core object model is:
+
+```text
+Claim -> Attestation -> Ledger Entry -> Signed Checkpoint
+```
+
+### 1. Key Generation
+
+```bash
+python src/delta_cli.py keygen --name demo-executor
+python src/delta_cli.py keygen --name demo-verifier --role verifier
+python src/delta_cli.py keygen --name demo-checkpoint-signer --role checkpoint-signer
+```
+
+### 2. Claim
+
+A Claim is created by an Executor and signed through a detached Executor signature envelope.
+
+```text
+claim.json
+executor_signature.json
+```
+
+### 3. Attestation
+
+An Attestation is created by a Verifier after verifying the Executor signature.
+
+```text
+attestation.json
+verifier_signature.json
+```
+
+### 4. Ledger Entry
+
+A Ledger Entry binds the hashes of the Claim, Executor signature, Attestation, and Verifier signature.
+
+```text
+ledger_entry.json
+```
+
+A Ledger Entry is hash-chain data only. It is not signed in DELTA-0.
+
+The first entry uses:
+
+```text
+GENESIS_PREV_ENTRY_HASH = sha256:0000000000000000000000000000000000000000000000000000000000000000
+```
+
+The canonical timestamp field for ledger inclusion is:
+
+```text
+included_at
+```
+
+### 5. Signed Checkpoint
+
+A Signed Checkpoint commits to a ledger head.
+
+```text
+checkpoint.json
+checkpoint_signature.json
+```
+
+The canonical timestamp field for checkpoint publication is:
+
+```text
+published_at
+```
 
 ---
 
@@ -58,13 +268,11 @@ Current CLI milestone:
 
 DELTA includes three public adoption examples covering code, business privacy, and AI accountability.
 
-These examples show that DELTA is not limited to one narrow use case. It can prove change across software systems, private business records, and autonomous AI execution workflows.
-
 | Example | Path | What it demonstrates |
 |---|---|---|
-| Code Change Proof | `examples/code-change-proof` | Git & CI/CD proof of a code change |
-| Private Payload Proof | `examples/private-payload-proof` | Blind Auditing / NDA proof without exposing private bytes |
-| AI Agent Proof | `examples/ai-agent-proof` | Machine Accountability & AI Executions |
+| Code Change Proof | `examples/code-change-proof/` | Git & CI/CD proof of a code change |
+| Private Payload Proof | `examples/private-payload-proof/` | Blind Auditing / NDA proof without exposing private bytes |
+| AI Agent Proof | `examples/ai-agent-proof/` | Machine Accountability & AI Executions |
 
 Run all public verifiers through the DELTA CLI:
 
@@ -79,10 +287,175 @@ Genesis verifier: OK
 Code Change Proof verifier: OK
 Private Payload Proof verifier: OK
 AI Agent Proof verifier: OK
+
 DELTA CLI RESULT: OK
 ```
 
-Current public milestones:
+---
+
+## Formal Specification
+
+The DELTA-0 formal specification is in:
+
+- [DELTA-0 Yellow Paper](docs/spec/DELTA-0-yellow-paper.md)
+- [Threat Model](docs/spec/threat-model.md)
+- [Canonicalization Rules](docs/spec/canonicalization.md)
+- [Cryptographic Structures](docs/spec/cryptographic-structures.md)
+
+The specification freezes the DELTA-0 terminology and core structures:
+
+```text
+Claim
+Executor
+Attestation
+Verifier
+Ledger Entry
+Signed Checkpoint
+Checkpoint Signer
+Detached Signature
+Evidence Hash
+Canonical JSON
+Proof without exposure
+Identity by proof, not exposure
+```
+
+Legacy or experimental fields are not part of DELTA-0:
+
+```text
+claim_id
+recorded_at
+checkpointed_at
+embedded signatures inside payload objects
+```
+
+---
+
+## Cryptographic Model
+
+DELTA-0 uses:
+
+```text
+SHA-256
+Ed25519
+Canonical JSON bytes
+Detached signature envelopes
+```
+
+Payload objects are signed as:
+
+```text
+signature = Ed25519.sign(canonical_json_bytes(payload))
+```
+
+The signature input is the canonical JSON bytes of the payload, not a prehashed digest.
+
+A detached signature envelope stores:
+
+```text
+target_hash = sha256(canonical_json_bytes(payload))
+```
+
+The target hash binds the signature envelope to the payload and prevents substitution attacks.
+
+---
+
+## Canonical JSON
+
+All DELTA JSON objects are hashed and signed using deterministic canonical JSON bytes.
+
+Reference Python behavior:
+
+```text
+json.dumps(
+  object,
+  sort_keys=True,
+  separators=(",", ":"),
+  ensure_ascii=False,
+  allow_nan=False
+).encode("utf-8")
+```
+
+DELTA-0 intentionally rejects floating-point values in cryptographic structures. This avoids cross-language determinism failures involving float rendering, `NaN`, `Infinity`, and platform-specific numeric behavior.
+
+JSON files must be encoded as UTF-8 without BOM.
+
+---
+
+## Proof Without Exposure
+
+DELTA supports private evidence through hash commitments.
+
+A party can publish:
+
+```text
+evidence_hash
+claim.json
+executor_signature.json
+attestation.json
+verifier_signature.json
+ledger_entry.json
+checkpoint.json
+checkpoint_signature.json
+```
+
+without publishing the private evidence bytes.
+
+Later, the private evidence can be disclosed to an authorized party. If the recomputed hash matches the public `evidence_hash`, the evidence is cryptographically bound to the original proof.
+
+This is a privacy-preserving hash-commitment model. It is not a general-purpose zero-knowledge proof system.
+
+---
+
+## Identity by Proof, Not Exposure
+
+DELTA-0 does not require publishing private identity documents.
+
+A public key can be associated with an organization or system through external proof channels such as:
+
+- DNS TXT records,
+- certificates,
+- signed statements,
+- registries,
+- legal agreements,
+- procurement or compliance records.
+
+The CLI key generation command prints a DNS TXT preparation hint:
+
+```text
+delta-pubkey=<public-key>
+```
+
+This prepares the protocol for future PKI layers without requiring user accounts or centralized identity.
+
+---
+
+## Repository Map
+
+```text
+src/
+  delta_cli.py                  # DELTA CLI verifier and Write Mode
+
+examples/
+  code-change-proof/            # Git & CI/CD proof example
+  private-payload-proof/        # Blind auditing / NDA example
+  ai-agent-proof/               # Machine accountability example
+
+docs/
+  index.html                    # DELTA Web Explorer for GitHub Pages
+  app.js
+  style.css
+  README.md
+
+docs/spec/
+  DELTA-0-yellow-paper.md
+  threat-model.md
+  canonicalization.md
+  cryptographic-structures.md
+```
+
+---
+
+## Release Milestones
 
 ```text
 v0.5.2-genesis-rc
@@ -90,797 +463,66 @@ v0.5.3-code-change-proof
 v0.5.4-evidence-line-endings
 v0.6-alpha-cli
 v0.6.1-private-payload-proof
+v0.6.2-adoption-readme
 v0.6.2-ai-agent-proof
+v0.7-alpha-keygen
+v0.7-alpha-claim
+v0.7-alpha-attest
+v0.7.0-write-mode-complete
+v0.8.0-web-explorer-mvp
+v0.9.0-yellow-paper
 ```
-
-Together, these examples position DELTA as a Proof of Change standard for code, business, and artificial intelligence.
 
 ---
 
-## Code Change Proof Example
+## v1.0-RC Fresh Clone Test
 
-The first practical DELTA adoption example is available here:
-
-`examples/code-change-proof`
-
-This example shows how DELTA can work above Git and CI/CD.
-
-Flow:
-
-```text
-Before: failing test
-Action: code fix
-After: passing test
-Evidence: CI-style test_results.log
-Verifier: Local CI Server Verification Key
-Result: cryptographically verifiable Proof of Change
-```
-
-Run the example verifier:
+Before tagging a v1.0 release candidate, run:
 
 ```bash
-python examples/code-change-proof/code_change_public_verifier.py
-```
-
-Expected result:
-
-```text
-DELTA CODE CHANGE PROOF VERIFIER RESULT: OK
-```
-
-This example demonstrates:
-
-- Git commit before the fix
-- Git commit after the fix
-- SHA-256 evidence hash of a test log
-- Developer key as Executor
-- Local CI Server Verification Key as Verifier
-- Delta Claim
-- Delta Attestation
-- Ledger Entry
-- Signed Checkpoint
-- Public verifier
-- Evidence byte stability protected by `.gitattributes`
-
-This example does not modify or replace the DELTA-0 Genesis Release Candidate v0.5.2.
-
----
-
-## Private Payload Proof Example
-
-DELTA also includes a privacy-focused adoption example:
-
-`examples/private-payload-proof`
-
-This example shows how DELTA can prove a private digital change without publishing the private payload.
-
-Core principle:
-
-```text
-Proof without exposure.
-```
-
-Flow:
-
-```text
-Before: private document draft
-Action: private document accepted and countersigned
-After: private document signed
-Evidence: SHA-256 hash commitment to private payload
-Verifier: Local Compliance Verification Key
-Result: public proof without exposing private bytes
-```
-
-Run the example verifier:
-
-```bash
-python examples/private-payload-proof/private_payload_public_verifier.py
-```
-
-Or use DELTA CLI:
-
-```bash
-python src/delta_cli.py verify-private-payload
+cd <clean-directory>
+git clone https://github.com/tomaszluszcz83-ship-it/delta-protocol.git
+cd delta-protocol
+python -m pip install cryptography
 python src/delta_cli.py verify-all
 ```
 
 Expected result:
-
-```text
-DELTA PRIVATE PAYLOAD PROOF VERIFIER RESULT: OK
-```
-
-This example demonstrates:
-
-- private payload hash commitment
-- public private-payload manifest
-- before and after private state records
-- Delta Claim
-- Executor signature
-- Delta Attestation
-- Verifier signature
-- Ledger Entry
-- Signed Checkpoint
-- Chain Proof
-- public verification without private payload disclosure
-
-This example does not modify or replace the DELTA-0 Genesis Release Candidate v0.5.2.
-
----
-
-## AI Agent Proof Example
-
-DELTA also includes an AI accountability adoption example:
-
-`examples/ai-agent-proof`
-
-This example shows how DELTA can prove that an AI agent performed a declared analytical task, produced an output, signed the Claim as Executor, and had the output reviewed by a Human Supervisor / QA Verification Key.
-
-Core principle:
-
-```text
-Machine accountability by proof, not trust.
-```
-
-Flow:
-
-```text
-Before: Q3 financial dataset and prompt
-Action: AI agent anomaly analysis
-After: AI-generated anomaly report
-Evidence: agent execution trace hash
-Executor: AI Agent X-77 Verification Key
-Verifier: Human Supervisor / QA Verification Key
-Result: reviewed AI Agent Proof
-```
-
-Run the example verifier:
-
-```bash
-python examples/ai-agent-proof/ai_agent_public_verifier.py
-```
-
-Or use DELTA CLI:
-
-```bash
-python src/delta_cli.py verify-ai-agent
-python src/delta_cli.py verify-all
-```
-
-Expected result:
-
-```text
-DELTA AI AGENT PROOF VERIFIER RESULT: OK
-```
-
-This example demonstrates:
-
-- AI agent identity as Executor
-- before state containing the prompt and Q3 financial dataset
-- after state containing the AI-generated anomaly report
-- execution trace hash binding
-- token usage and execution duration metadata
-- Human Supervisor / QA attestation
-- Ledger Entry
-- Signed Checkpoint
-- Chain Proof
-- public verification of AI execution accountability
-
-This example does not prove that the AI output is objectively true.
-It proves the cryptographic accountability chain around the declared AI execution.
-
----
-
-## What DELTA proves
-
-DELTA does not claim to prove absolute truth.
-
-DELTA proves that:
-
-- a Claim was created,
-- a Claim was signed by an Executor key,
-- evidence was bound by hash,
-- an Attestation was signed by a Verifier key,
-- the Attestation was included in a Ledger Entry,
-- the Ledger Entry was connected to a Signed Checkpoint,
-- the shown ledger segment is tamper-evident.
-
-In short:
-
-DELTA proves a cryptographically bound record of declared and verified digital change.
-
----
-
-## DELTA-0 Genesis Release Candidate
-
-This repository contains the DELTA-0 Genesis Release Candidate.
-
-Protocol version:
-
-DELTA-0 v0.5.2
-
-Current status:
-
-- Public verifier OK
-- Private keys not included
-- Zero-token protocol
-- Non-cryptocurrency
-- Proof of Change
-
-The Genesis package is located in:
-
-`release/DELTA-0-genesis-public.zip`
-
-The distribution hash is located in:
-
-`release/DELTA-0-genesis-public.zip.sha256.txt`
-
----
-
-## Genesis proof flow
-
-DELTA-0 uses this minimum proof structure:
-
-```text
-Delta Claim
--> Delta Attestation
--> Ledger Entry
--> Signed Checkpoint
--> Public Verification
-```
-
-The Genesis Record demonstrates the first complete DELTA proof flow.
-
----
-
-## Repository structure
-
-Expected structure:
-
-```text
-DELTA-0/
-├── README.md
-├── .gitignore
-├── .gitattributes
-├── spec/
-│   └── DELTA-0-v0.5.2-core-structures.md
-├── src/
-│   ├── delta_cli.py
-│   ├── genesis_generator.py
-│   └── genesis_public_verifier.py
-├── genesis/
-│   ├── claim.json
-│   ├── executor_signature.json
-│   ├── attestation.json
-│   ├── verifier_signature.json
-│   ├── ledger_entry.json
-│   ├── ledger.json
-│   ├── chain_proof.json
-│   ├── checkpoint.json
-│   ├── checkpoint_signature.json
-│   ├── genesis_bundle.json
-│   ├── evidence_manifest.json
-│   ├── verification_policy.json
-│   ├── public_keys.json
-│   ├── hashes.txt
-│   └── SELF_CHECK_OK.txt
-├── release/
-│   ├── DELTA-0-genesis-public/
-│   ├── DELTA-0-genesis-public.zip
-│   └── DELTA-0-genesis-public.zip.sha256.txt
-└── examples/
-    ├── code-change-proof/
-    │   ├── README.md
-    │   ├── code_change_public_verifier.py
-    │   ├── evidence/
-    │   │   └── test_results.log
-    │   └── records/
-    │       ├── before_state.json
-    │       ├── after_state.json
-    │       ├── claim.json
-    │       ├── executor_signature.json
-    │       ├── attestation.json
-    │       ├── verifier_signature.json
-    │       ├── ledger_entry.json
-    │       ├── ledger.json
-    │       ├── chain_proof.json
-    │       ├── checkpoint.json
-    │       ├── checkpoint_signature.json
-    │       ├── public_keys.json
-    │       ├── verification_policy.json
-    │       ├── hashes.json
-    │       ├── hashes.txt
-    │       └── evidence_hash.txt
-    ├── private-payload-proof/
-    │   ├── README.md
-    │   ├── private_payload_public_verifier.py
-    │   └── records/
-    │       ├── before_state.json
-    │       ├── after_state.json
-    │       ├── private_payload_manifest.json
-    │       ├── verification_policy.json
-    │       ├── public_keys.json
-    │       ├── claim.json
-    │       ├── executor_signature.json
-    │       ├── attestation.json
-    │       ├── verifier_signature.json
-    │       ├── ledger_entry.json
-    │       ├── ledger.json
-    │       ├── chain_proof.json
-    │       ├── checkpoint.json
-    │       ├── checkpoint_signature.json
-    │       ├── hashes.json
-    │       └── hashes.txt
-    └── ai-agent-proof/
-        ├── README.md
-        ├── ai_agent_public_verifier.py
-        └── records/
-            ├── before_state.json
-            ├── after_state.json
-            ├── agent_execution.json
-            ├── verification_policy.json
-            ├── public_keys.json
-            ├── claim.json
-            ├── executor_signature.json
-            ├── attestation.json
-            ├── verifier_signature.json
-            ├── ledger_entry.json
-            ├── ledger.json
-            ├── chain_proof.json
-            ├── checkpoint.json
-            ├── checkpoint_signature.json
-            ├── hashes.json
-            └── hashes.txt
-```
-
----
-
-## Important security rule
-
-Do not publish private keys.
-
-The local development folder may contain:
-
-`genesis/private_keys/`
-
-This folder must never be published, committed, uploaded, or shared.
-
-The public ZIP must not contain:
-
-```text
-private_keys
-.pem
-.key
-.secret
-.env
-```
-
-The `.gitignore` file blocks these paths and file types.
-
----
-
-## Evidence byte rule
-
-DELTA evidence files are protocol evidence bytes.
-
-Git must not rewrite them.
-
-The repository uses `.gitattributes` to protect evidence files from automatic line-ending conversion.
-
-For the Code Change Proof example:
-
-```text
-examples/code-change-proof/evidence/* -text
-```
-
-This protects the raw bytes used to compute:
-
-- `evidence_hash`
-- Delta Claim binding
-- Delta Attestation binding
-- Ledger Entry binding
-- Signed Checkpoint binding
-
----
-
-## Private payload rule
-
-DELTA can prove private payload changes without publishing private payload bytes.
-
-For the Private Payload Proof example, the private payload is not committed to the repository and is not written to disk as a payload file.
-
-The public proof contains only:
-
-- private payload hash
-- private payload manifest
-- before state
-- after state
-- Delta Claim
-- Executor signature
-- Delta Attestation
-- Verifier signature
-- Ledger Entry
-- Signed Checkpoint
-- Chain Proof
-
-Rule:
-
-Evidence by hash, not exposure.
-
----
-
-## AI agent accountability rule
-
-DELTA can prove AI-agent execution accountability without claiming that the AI output is absolute truth.
-
-For the AI Agent Proof example, the AI agent is the Executor. The proof binds:
-
-- raw prompt and input data
-- AI-generated output
-- execution trace
-- AI agent executor signature
-- Human Supervisor / QA attestation
-- Ledger Entry
-- Signed Checkpoint
-- Chain Proof
-
-Rule:
-
-Machine accountability by proof, not trust.
-
----
-
-## How to verify with DELTA CLI
-
-Run all public verifiers:
-
-```bash
-python src/delta_cli.py verify-all
-```
-
-Expected final result:
 
 ```text
 Genesis verifier: OK
 Code Change Proof verifier: OK
 Private Payload Proof verifier: OK
 AI Agent Proof verifier: OK
+
 DELTA CLI RESULT: OK
 ```
 
-Run individual verifiers:
-
-```bash
-python src/delta_cli.py verify-genesis
-python src/delta_cli.py verify-code-change
-python src/delta_cli.py verify-private-payload
-python src/delta_cli.py verify-ai-agent
-```
-
-Show CLI version:
-
-```bash
-python src/delta_cli.py version
-```
+This test ensures the repository is portable and does not rely on hidden local state.
 
 ---
 
-## How to verify the public Genesis package directly
+## Status
 
-Install Python 3.12 or newer.
+DELTA-0 currently includes:
 
-Install the required cryptography package:
+- a cryptographic core,
+- public verification examples,
+- CLI verification,
+- CLI Write Mode,
+- browser-only Web Explorer,
+- formal Yellow Paper and specification draft.
 
-```bash
-python -m pip install cryptography
-```
-
-Extract the public package:
-
-`release/DELTA-0-genesis-public.zip`
-
-Run the public verifier:
-
-```bash
-python src/genesis_public_verifier.py
-```
-
-Expected final result:
+Current direction:
 
 ```text
-DELTA PUBLIC VERIFIER RESULT: OK
+v1.0 Release Candidate
+Polish & Audit
+No new cryptographic features
 ```
 
 ---
 
-## How to verify the Code Change Proof example directly
+## License
 
-Run:
-
-```bash
-python examples/code-change-proof/code_change_public_verifier.py
-```
-
-Expected final result:
-
-```text
-DELTA CODE CHANGE PROOF VERIFIER RESULT: OK
-```
-
----
-
-## How to verify the Private Payload Proof example directly
-
-Run:
-
-```bash
-python examples/private-payload-proof/private_payload_public_verifier.py
-```
-
-Expected final result:
-
-```text
-DELTA PRIVATE PAYLOAD PROOF VERIFIER RESULT: OK
-```
-
----
-
-## How to verify the AI Agent Proof example directly
-
-Run:
-
-```bash
-python examples/ai-agent-proof/ai_agent_public_verifier.py
-```
-
-Expected final result:
-
-```text
-DELTA AI AGENT PROOF VERIFIER RESULT: OK
-```
-
----
-
-## What the public Genesis verifier checks
-
-The public Genesis verifier checks:
-
-1. The public package does not contain private keys.
-2. JSON objects are loaded and canonicalized before hashing.
-3. Hashes use `sha256:<64 lowercase hex chars>`.
-4. Delta Claim hash is recomputed.
-5. Executor signature verifies against the Delta Claim.
-6. Delta Attestation hash is recomputed.
-7. Verifier signature verifies against the Delta Attestation.
-8. Ledger Entry binds:
-   - `claim_hash`
-   - `executor_sig_hash`
-   - `attestation_hash`
-   - `verifier_sig_hash`
-9. Genesis `prev_entry_hash` uses the fixed zero hash.
-10. Checkpoint `head_entry_hash` matches the Ledger Entry hash.
-11. Checkpoint signature verifies.
-12. Chain proof links the Ledger Entry to the checkpoint.
-13. Genesis bundle hash summary matches recomputed hashes.
-14. `hashes.txt` matches recomputed hashes.
-15. `SELF_CHECK_OK.txt` is ignored as proof.
-
----
-
-## What the Code Change Proof verifier checks
-
-The Code Change Proof verifier checks:
-
-1. The example does not contain private keys or secret files.
-2. `before_state.json` and `after_state.json` are valid Git-based states.
-3. Git commit references use 40-character lowercase hexadecimal format.
-4. The evidence log contains `FAIL -> PASS`.
-5. State and evidence hashes are recomputed.
-6. Delta Claim hash is recomputed.
-7. Executor signature verifies against the Delta Claim.
-8. Delta Attestation hash is recomputed.
-9. Verifier signature verifies against the Delta Attestation.
-10. Ledger Entry binds:
-    - `claim_hash`
-    - `executor_sig_hash`
-    - `attestation_hash`
-    - `verifier_sig_hash`
-11. Checkpoint hash is recomputed.
-12. Checkpoint signature verifies.
-13. Chain proof links the Ledger Entry to the checkpoint.
-14. `hashes.json` and `hashes.txt` match recomputed hashes.
-15. Evidence bytes are protected from Git line-ending rewriting.
-
----
-
-## What the Private Payload Proof verifier checks
-
-The Private Payload Proof verifier checks:
-
-1. The example does not contain private payload files or secret files.
-2. The private payload is represented by a SHA-256 hash commitment only.
-3. `before_state.json` and `after_state.json` describe a private payload state change.
-4. The private payload manifest is public but does not contain private payload bytes.
-5. Delta Claim binds:
-   - before state hash
-   - after state hash
-   - private payload hash
-   - private payload manifest hash
-6. Executor signature verifies against the Delta Claim.
-7. Delta Attestation verifies the hash commitment without payload disclosure.
-8. Verifier signature verifies against the Delta Attestation.
-9. Ledger Entry binds:
-   - `claim_hash`
-   - `executor_sig_hash`
-   - `attestation_hash`
-   - `verifier_sig_hash`
-   - `private_payload_manifest_hash`
-10. Checkpoint hash is recomputed.
-11. Checkpoint signature verifies.
-12. Chain proof links the private payload entry to the checkpoint.
-13. `hashes.json` and `hashes.txt` match recomputed hashes.
-
----
-
-## What the AI Agent Proof verifier checks
-
-The AI Agent Proof verifier checks:
-
-1. The example does not contain private keys or secret files.
-2. `before_state.json` contains the raw prompt and Q3 financial input data.
-3. `after_state.json` contains the AI analyst output report.
-4. `agent_execution.json` declares autonomous AI identity and human review.
-5. The execution trace includes tools, token usage, and duration.
-6. The AI output contains two anomalies and limitation language.
-7. Delta Claim binds:
-   - before state hash
-   - after state hash
-   - AI agent executor key
-   - execution trace hash
-8. AI agent Executor signature verifies against the Delta Claim.
-9. Verification policy defines Human Supervisor / QA checks.
-10. Human Supervisor / QA Attestation binds the agent output and policy.
-11. Human Supervisor / QA signature verifies against the Attestation.
-12. Ledger Entry binds:
-    - `claim_hash`
-    - `executor_sig_hash`
-    - `attestation_hash`
-    - `verifier_sig_hash`
-    - `agent_execution_hash`
-13. Checkpoint hash is recomputed.
-14. Checkpoint signature verifies.
-15. Chain proof links the AI Agent entry to the checkpoint.
-16. `hashes.json` and `hashes.txt` match recomputed hashes.
-
----
-
-## Cryptographic model
-
-DELTA-0 uses:
-
-- JCS-style canonical JSON
-- SHA-256 hashes
-- Ed25519 signatures
-- detached signature envelopes
-- linear hash-chain
-- signed checkpoints
-- private evidence hashes
-
-Rule:
-
-Hash identifies the object.
-Signature signs the canonical object.
-
-Signatures are not embedded inside the objects they sign.
-
-This avoids circular hashing and signature ambiguity.
-
----
-
-## What DELTA_VERIFIED means
-
-In DELTA-0 Genesis, DELTA_VERIFIED means that the following are cryptographically consistent:
-
-- Delta Claim
-- Executor signature
-- Delta Attestation
-- Verifier signature
-- Ledger Entry
-- Chain proof
-- Signed Checkpoint
-- Checkpoint signature
-- Genesis bundle hash summary
-
-It means the declared change, evidence hash, signatures, ledger entry, and checkpoint are cryptographically bound and tamper-evident.
-
----
-
-## What DELTA_VERIFIED does not mean
-
-DELTA_VERIFIED does not mean:
-
-- absolute truth about the physical world,
-- that the verifier cannot be wrong,
-- that evidence is publicly visible,
-- that evidence could not have been fabricated before hashing,
-- legal ownership,
-- financial value,
-- token ownership,
-- cryptocurrency issuance,
-- that an AI output is necessarily true,
-- that an AI agent had no hallucination risk.
-
-DELTA is not a magic truth machine.
-
-DELTA proves a cryptographically bound record of a declared and verified change.
-
----
-
-## Genesis purpose
-
-The DELTA Genesis Record symbolically records the creation of the first public Proof of Change structure.
-
-Before:
-
-The internet could prove ownership, identity, transactions, and file hashes, but had no universal proof layer for change.
-
-Action:
-
-DELTA-0 protocol genesis release created.
-
-After:
-
-The first DELTA Proof of Change record exists.
-
-Evidence:
-
-Protocol specification hash, generator source hash, before statement hash, after statement hash, and verification policy hash.
-
-Verifier:
-
-Genesis local verifier key.
-
----
-
-## Release status
-
-DELTA-0 Genesis Release Candidate
-
-Protocol version:
-
-DELTA-0 v0.5.2
-
-Status:
-
-- Public verifier OK
-- Private keys not included
-- Zero-token protocol
-- Non-cryptocurrency
-- Proof of Change
-
----
-
-## Tags
-
-Current public protocol milestones:
-
-- `v0.5.2-genesis-rc`
-- `v0.5.3-code-change-proof`
-- `v0.5.4-evidence-line-endings`
-- `v0.6-alpha-cli`
-- `v0.6.1-private-payload-proof`
-- `v0.6.2-ai-agent-proof`
-
----
-
-## Founder / originator
-
-DELTA Protocol was initiated by Tomasz Łuszcz.
-
-Private identity evidence should not be placed directly into the public ledger.
-
-Identity should be proven by signed evidence and hashes, not by unnecessary exposure of private personal data.
-
-Principle:
-
-Identity by proof, not exposure.
+License information is defined by the repository license file if present.

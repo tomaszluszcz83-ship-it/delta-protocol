@@ -1,11 +1,17 @@
-# DELTA Protocol repository line-ending policy
+# DELTA Protocol byte-stability policy.
+#
+# DELTA public verifiers hash exact bytes.
+# Therefore this repository disables Git CRLF/LF normalization globally.
+#
+# No file in this repository should be rewritten by Git line-ending conversion.
 
-# Source and documentation files should be stable LF text.
-*.md text eol=lf
-*.py text eol=lf
-*.json text eol=lf
-*.txt text eol=lf
+* -text
 
-# DELTA evidence files are protocol evidence bytes.
-# Git must not rewrite them because their raw bytes are hashed.
-examples/code-change-proof/evidence/* -text
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.zip binary
+*.ico binary
+*.pdf binary
