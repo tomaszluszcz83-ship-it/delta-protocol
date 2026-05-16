@@ -1,0 +1,16 @@
+{
+  "type": "verification_policy",
+  "protocol_version": "DELTA-0",
+  "example_version": "DELTA-0 v0.6.1",
+  "policy_id": "delta-policy:private-payload-proof-local-compliance-v0.6.1",
+  "verifier": "Local Compliance Verification Key",
+  "required_checks": [
+    "private payload is represented only by a SHA-256 hash commitment",
+    "private payload bytes are not published",
+    "before_state.status == draft",
+    "after_state.status == signed",
+    "claim binds private_payload_hash",
+    "attestation result is HASH_COMMITMENT_VERIFIED",
+    "ledger entry binds claim, signatures, attestation, and private payload manifest"
+  ]
+}

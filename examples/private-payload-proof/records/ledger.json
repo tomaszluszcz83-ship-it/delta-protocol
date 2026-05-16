@@ -1,0 +1,25 @@
+{
+  "type": "delta_ledger",
+  "protocol_version": "DELTA-0",
+  "example_version": "DELTA-0 v0.6.1",
+  "ledger_id": "delta-ledger:private-payload-proof-example",
+  "entries": [
+    {
+      "entry_hash": "sha256:3871e67aa38821da398ad4cd85375ac19dc53475cfd4de320489d7d3751ed0db",
+      "entry": {
+        "type": "delta_ledger_entry",
+        "protocol_version": "DELTA-0",
+        "example_version": "DELTA-0 v0.6.1",
+        "ledger_id": "delta-ledger:private-payload-proof-example",
+        "seq": 1,
+        "prev_entry_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "claim_hash": "sha256:4fc5bcbe7788d7c400308067d793f807e24956274819472b244f43fab3162c39",
+        "executor_sig_hash": "sha256:d4d1fc45604fb9efdc4e171dccd885951dfb62a66a2adae3f70771e092ea59c4",
+        "attestation_hash": "sha256:3f30b1ac102e76722a54cacb53f8f509c32c04025f4c9119b9b67fdcb4ab6f8c",
+        "verifier_sig_hash": "sha256:95ddbe5049da13661c296e4787534b7b4deecf24d3eda33ee440ea9c0f2ad9a9",
+        "private_payload_manifest_hash": "sha256:85d4c7601a9672c32355443431a62400ab04d7b3044ba376614b587d2deb7e30",
+        "timestamp": "2026-05-16T13:31:44Z"
+      }
+    }
+  ]
+}
