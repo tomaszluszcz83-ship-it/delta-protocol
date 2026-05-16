@@ -1,0 +1,11 @@
+{
+  "type": "delta_signed_checkpoint",
+  "protocol_version": "DELTA-0",
+  "example_version": "DELTA-0 v0.6.2",
+  "ledger_id": "delta-ledger:ai-agent-proof-example",
+  "checkpoint_seq": 1,
+  "entry_count": 1,
+  "head_entry_hash": "sha256:7443c8fd6091c5aa4c6a057419e399412694a5fb74eda272df774b8b3ded480c",
+  "verifier_pubkey": "ed25519:z2gTn0kNN2Sw7_TRnvvDh8KwnmEfjLaB0C4Z1zxY8Mc",
+  "timestamp": "2026-05-16T14:06:47Z"
+}

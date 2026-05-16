@@ -1,0 +1,111 @@
+{
+  "type": "ai_agent_execution_evidence",
+  "protocol_version": "DELTA-0",
+  "example_version": "DELTA-0 v0.6.2",
+  "agent_identity_model": "agent_ed25519_executor_key",
+  "agent_id": "AI-Agent-X-77",
+  "agent_name": "Example Autonomous Financial Analysis Agent",
+  "agent_pubkey": "ed25519:xAShPo1J-6w9pSSgvEdZQTyE4SEU5qVRV11JzBK0vro",
+  "prompt": "Find financial anomalies in the Q3 dataset and generate a short risk report.",
+  "input_data": {
+    "dataset_id": "q3-financial-demo-001",
+    "period": "Q3",
+    "currency": "USD",
+    "records": [
+      {
+        "id": "Q3-001",
+        "date": "2026-07-08",
+        "category": "software",
+        "amount": 4200,
+        "approved": true
+      },
+      {
+        "id": "Q3-002",
+        "date": "2026-07-19",
+        "category": "travel",
+        "amount": 860,
+        "approved": true
+      },
+      {
+        "id": "Q3-003",
+        "date": "2026-08-03",
+        "category": "vendor_payment",
+        "amount": 125000,
+        "approved": false
+      },
+      {
+        "id": "Q3-004",
+        "date": "2026-08-29",
+        "category": "office",
+        "amount": 230,
+        "approved": true
+      },
+      {
+        "id": "Q3-005",
+        "date": "2026-09-11",
+        "category": "consulting",
+        "amount": 48000,
+        "approved": true
+      },
+      {
+        "id": "Q3-006",
+        "date": "2026-09-15",
+        "category": "consulting",
+        "amount": 48000,
+        "approved": true
+      }
+    ]
+  },
+  "agent_output": {
+    "report_type": "q3_financial_anomaly_summary",
+    "risk_level": "high",
+    "summary": "AI Agent X-77 identified two Q3 financial anomalies requiring supervisor review.",
+    "anomalies": [
+      {
+        "anomaly_id": "Q3-ANOM-001",
+        "record_id": "Q3-003",
+        "reason": "Large unapproved vendor payment.",
+        "severity": "high"
+      },
+      {
+        "anomaly_id": "Q3-ANOM-002",
+        "record_ids": [
+          "Q3-005",
+          "Q3-006"
+        ],
+        "reason": "Duplicate consulting payments with identical amounts within four days.",
+        "severity": "medium"
+      }
+    ],
+    "recommended_action": "Escalate Q3-003 immediately and request documentation for Q3-005/Q3-006.",
+    "limitations": "This AI report has limitations and is not a legal, financial, or operational decision without human review."
+  },
+  "execution_trace": [
+    {
+      "step": 1,
+      "tool": "read_dataset",
+      "input_ref": "q3-financial-demo-001",
+      "result": "dataset_loaded"
+    },
+    {
+      "step": 2,
+      "tool": "detect_anomalies",
+      "method": "threshold_and_duplicate_scan",
+      "result": "two_candidate_anomalies_found"
+    },
+    {
+      "step": 3,
+      "tool": "generate_report",
+      "format": "structured_json",
+      "result": "risk_report_generated"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 742,
+    "output_tokens": 318,
+    "total_tokens": 1060
+  },
+  "duration_ms": 1842,
+  "human_review_required": true,
+  "timestamp": "2026-05-16T14:06:47Z"
+}

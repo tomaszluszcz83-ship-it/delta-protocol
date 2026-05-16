@@ -1,0 +1,17 @@
+{
+  "type": "delta_attestation",
+  "protocol_version": "DELTA-0",
+  "example_version": "DELTA-0 v0.6.2",
+  "attestation_type": "ai_agent_output_review",
+  "verifier_pubkey": "ed25519:z2gTn0kNN2Sw7_TRnvvDh8KwnmEfjLaB0C4Z1zxY8Mc",
+  "verifier_name": "Human Supervisor / QA Verification Key",
+  "verifier_role": "Human Supervisor / QA Verification Key",
+  "target_claim_hash": "sha256:dfd02a7bc6daad69bc7bc50b86ecbc69f8b3ff724830265eb81dd04443a48941",
+  "target_executor_sig_hash": "sha256:720e79c086adb9ac2e1b5350d2ad84d97d9b7269dbe606dbabd3d1f716352e97",
+  "agent_execution_hash": "sha256:62184ef85b702a382afb63e0c07192acdee56b954326bcd4991e02f92c38a475",
+  "verification_policy_hash": "sha256:75e66f19250abcf88f4e87f03a0e712ef38ac043f3a7783ed2d250537c6126d7",
+  "publication_mode": "ledger_required",
+  "intended_ledger_id": "delta-ledger:ai-agent-proof-example",
+  "result": "AI_AGENT_OUTPUT_REVIEWED",
+  "timestamp": "2026-05-16T14:06:47Z"
+}

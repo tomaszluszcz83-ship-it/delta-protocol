@@ -1,0 +1,12 @@
+{
+  "type": "delta_signature",
+  "protocol_version": "DELTA-0",
+  "example_version": "DELTA-0 v0.6.2",
+  "role": "human_supervisor_or_qa_gate",
+  "alg": "Ed25519",
+  "public_key": "ed25519:z2gTn0kNN2Sw7_TRnvvDh8KwnmEfjLaB0C4Z1zxY8Mc",
+  "target_type": "delta_attestation",
+  "target_hash": "sha256:f5db9351066f406b440e84550ad41aa8a908ece2d7b60827e0f6962512297e40",
+  "signature": "ed25519sig:2IGhXu2gelBqKoHMs4msbQ4_wk96YOH9pNIPTWasL7tR7PQyIFy92niFVJ6sO3QKyyqao0Vj3im_W8IAb4UiDA",
+  "timestamp": "2026-05-16T14:06:47Z"
+}

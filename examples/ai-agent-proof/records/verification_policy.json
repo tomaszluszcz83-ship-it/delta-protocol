@@ -1,0 +1,17 @@
+{
+  "type": "verification_policy",
+  "protocol_version": "DELTA-0",
+  "example_version": "DELTA-0 v0.6.2",
+  "policy_id": "delta-policy:ai-agent-proof-human-supervisor-v0.6.2",
+  "verifier": "Human Supervisor / QA Verification Key",
+  "verifier_role": "human_supervisor_or_qa_gate",
+  "required_checks": [
+    "prompt is present",
+    "Q3 input data is present",
+    "agent output identifies two anomalies",
+    "agent output includes limitations",
+    "AI agent executor signature verifies",
+    "Human Supervisor or QA attestation signature verifies",
+    "ledger entry binds claim, signatures, attestation, and execution trace"
+  ]
+}

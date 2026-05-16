@@ -1,0 +1,14 @@
+{
+  "type": "delta_claim",
+  "protocol_version": "DELTA-0",
+  "example_version": "DELTA-0 v0.6.2",
+  "claim_type": "ai_agent_work",
+  "executor_type": "ai_agent",
+  "executor_pubkey": "ed25519:xAShPo1J-6w9pSSgvEdZQTyE4SEU5qVRV11JzBK0vro",
+  "before_hash": "sha256:af5dd8cdfdd866ee7b68edace3cc73bfa1fef196a43504d49d10e1d4fcf2cf99",
+  "action": "AI Agent X-77 analyzed Q3 financial data and produced an anomaly report.",
+  "after_hash": "sha256:d46a656eed1cac5de839e09326c426ad6908a4e711d4bd5c53e630805a34dd7e",
+  "evidence_hash": "sha256:62184ef85b702a382afb63e0c07192acdee56b954326bcd4991e02f92c38a475",
+  "agent_execution_hash": "sha256:62184ef85b702a382afb63e0c07192acdee56b954326bcd4991e02f92c38a475",
+  "timestamp": "2026-05-16T14:06:47Z"
+}

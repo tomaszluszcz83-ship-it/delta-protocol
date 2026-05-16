@@ -1,0 +1,33 @@
+{
+  "type": "ai_agent_after_state",
+  "protocol_version": "DELTA-0",
+  "example_version": "DELTA-0 v0.6.2",
+  "agent_id": "AI-Agent-X-77",
+  "executor_role": "ai_agent",
+  "output_status": "completed",
+  "agent_output": {
+    "report_type": "q3_financial_anomaly_summary",
+    "risk_level": "high",
+    "summary": "AI Agent X-77 identified two Q3 financial anomalies requiring supervisor review.",
+    "anomalies": [
+      {
+        "anomaly_id": "Q3-ANOM-001",
+        "record_id": "Q3-003",
+        "reason": "Large unapproved vendor payment.",
+        "severity": "high"
+      },
+      {
+        "anomaly_id": "Q3-ANOM-002",
+        "record_ids": [
+          "Q3-005",
+          "Q3-006"
+        ],
+        "reason": "Duplicate consulting payments with identical amounts within four days.",
+        "severity": "medium"
+      }
+    ],
+    "recommended_action": "Escalate Q3-003 immediately and request documentation for Q3-005/Q3-006.",
+    "limitations": "This AI report has limitations and is not a legal, financial, or operational decision without human review."
+  },
+  "description": "The AI data analyst produced a structured anomaly report for human review."
+}

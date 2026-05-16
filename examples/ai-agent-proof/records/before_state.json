@@ -1,0 +1,60 @@
+{
+  "type": "ai_agent_before_state",
+  "protocol_version": "DELTA-0",
+  "example_version": "DELTA-0 v0.6.2",
+  "agent_id": "AI-Agent-X-77",
+  "executor_role": "ai_agent",
+  "task": {
+    "prompt": "Find financial anomalies in the Q3 dataset and generate a short risk report.",
+    "input_data": {
+      "dataset_id": "q3-financial-demo-001",
+      "period": "Q3",
+      "currency": "USD",
+      "records": [
+        {
+          "id": "Q3-001",
+          "date": "2026-07-08",
+          "category": "software",
+          "amount": 4200,
+          "approved": true
+        },
+        {
+          "id": "Q3-002",
+          "date": "2026-07-19",
+          "category": "travel",
+          "amount": 860,
+          "approved": true
+        },
+        {
+          "id": "Q3-003",
+          "date": "2026-08-03",
+          "category": "vendor_payment",
+          "amount": 125000,
+          "approved": false
+        },
+        {
+          "id": "Q3-004",
+          "date": "2026-08-29",
+          "category": "office",
+          "amount": 230,
+          "approved": true
+        },
+        {
+          "id": "Q3-005",
+          "date": "2026-09-11",
+          "category": "consulting",
+          "amount": 48000,
+          "approved": true
+        },
+        {
+          "id": "Q3-006",
+          "date": "2026-09-15",
+          "category": "consulting",
+          "amount": 48000,
+          "approved": true
+        }
+      ]
+    }
+  },
+  "description": "The AI data analyst received a Q3 financial dataset and anomaly-detection prompt."
+}
