@@ -1,0 +1,9 @@
+README.md
+pyproject.toml
+src/delta_protocol/__init__.py
+src/delta_protocol/core.py
+src/delta_protocol.egg-info/PKG-INFO
+src/delta_protocol.egg-info/SOURCES.txt
+src/delta_protocol.egg-info/dependency_links.txt
+src/delta_protocol.egg-info/requires.txt
+src/delta_protocol.egg-info/top_level.txt
