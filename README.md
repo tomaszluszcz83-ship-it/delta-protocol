@@ -1,4 +1,4 @@
-# DELTA Protocol
+﻿# DELTA Protocol
 
 Proof of Change for the Internet.
 
@@ -17,6 +17,36 @@ Core statement:
 
 The internet can prove ownership.
 DELTA proves change.
+
+---
+
+## Quick start
+
+Run the DELTA CLI from the repository root:
+
+```bash
+python src/delta_cli.py version
+python src/delta_cli.py verify-all
+```
+
+Expected result:
+
+```text
+Genesis verifier: OK
+Code Change Proof verifier: OK
+DELTA CLI RESULT: OK
+```
+
+For individual verification:
+
+```bash
+python src/delta_cli.py verify-genesis
+python src/delta_cli.py verify-code-change
+```
+
+Current CLI milestone:
+
+`v0.6-alpha-cli`
 
 ---
 
@@ -41,8 +71,8 @@ Result: cryptographically verifiable Proof of Change
 
 Run the example verifier:
 
-```powershell
-python .\examples\code-change-proof\code_change_public_verifier.py
+```bash
+python examples/code-change-proof/code_change_public_verifier.py
 ```
 
 Expected result:
@@ -63,6 +93,7 @@ This example demonstrates:
 - Ledger Entry
 - Signed Checkpoint
 - Public verifier
+- Evidence byte stability protected by `.gitattributes`
 
 This example does not modify or replace the DELTA-0 Genesis Release Candidate v0.5.2.
 
@@ -138,9 +169,11 @@ Expected structure:
 DELTA-0/
 ├── README.md
 ├── .gitignore
+├── .gitattributes
 ├── spec/
 │   └── DELTA-0-v0.5.2-core-structures.md
 ├── src/
+│   ├── delta_cli.py
 │   ├── genesis_generator.py
 │   └── genesis_public_verifier.py
 ├── genesis/
@@ -214,13 +247,66 @@ The `.gitignore` file blocks these paths and file types.
 
 ---
 
-## How to verify the public Genesis package
+## Evidence byte rule
+
+DELTA evidence files are protocol evidence bytes.
+
+Git must not rewrite them.
+
+The repository uses `.gitattributes` to protect evidence files from automatic line-ending conversion.
+
+For the Code Change Proof example:
+
+```text
+examples/code-change-proof/evidence/* -text
+```
+
+This protects the raw bytes used to compute:
+
+- `evidence_hash`
+- Delta Claim binding
+- Delta Attestation binding
+- Ledger Entry binding
+- Signed Checkpoint binding
+
+---
+
+## How to verify with DELTA CLI
+
+Run all public verifiers:
+
+```bash
+python src/delta_cli.py verify-all
+```
+
+Expected final result:
+
+```text
+DELTA CLI RESULT: OK
+```
+
+Run individual verifiers:
+
+```bash
+python src/delta_cli.py verify-genesis
+python src/delta_cli.py verify-code-change
+```
+
+Show CLI version:
+
+```bash
+python src/delta_cli.py version
+```
+
+---
+
+## How to verify the public Genesis package directly
 
 Install Python 3.12 or newer.
 
 Install the required cryptography package:
 
-```powershell
+```bash
 python -m pip install cryptography
 ```
 
@@ -228,10 +314,10 @@ Extract the public package:
 
 `release/DELTA-0-genesis-public.zip`
 
-Run the public verifier from inside the extracted package:
+Run the public verifier:
 
-```powershell
-python .\src\genesis_public_verifier.py
+```bash
+python src/genesis_public_verifier.py
 ```
 
 Expected final result:
@@ -242,12 +328,12 @@ DELTA PUBLIC VERIFIER RESULT: OK
 
 ---
 
-## How to verify the Code Change Proof example
+## How to verify the Code Change Proof example directly
 
 Run:
 
-```powershell
-python .\examples\code-change-proof\code_change_public_verifier.py
+```bash
+python examples/code-change-proof/code_change_public_verifier.py
 ```
 
 Expected final result:
@@ -306,6 +392,7 @@ The Code Change Proof verifier checks:
 12. Checkpoint signature verifies.
 13. Chain proof links the Ledger Entry to the checkpoint.
 14. `hashes.json` and `hashes.txt` match recomputed hashes.
+15. Evidence bytes are protected from Git line-ending rewriting.
 
 ---
 
@@ -419,6 +506,8 @@ Current public protocol milestones:
 
 - `v0.5.2-genesis-rc`
 - `v0.5.3-code-change-proof`
+- `v0.5.4-evidence-line-endings`
+- `v0.6-alpha-cli`
 
 ---
 
