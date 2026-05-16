@@ -1,8 +1,10 @@
 # DELTA Protocol
 
+[![DELTA Verify](https://github.com/tomaszluszcz83-ship-it/delta-protocol/actions/workflows/delta-verify.yml/badge.svg)](https://github.com/tomaszluszcz83-ship-it/delta-protocol/actions/workflows/delta-verify.yml)
+
 **The internet can prove ownership. DELTA proves change.**
 
-🔎 **DELTA Web Explorer:** https://tomaszluszcz83-ship-it.github.io/delta-protocol/
+**DELTA Web Explorer:** https://tomaszluszcz83-ship-it.github.io/delta-protocol/
 
 DELTA-0 is a zero-token cryptographic **Proof-of-Change** protocol for verifiable digital actions.
 
@@ -12,7 +14,89 @@ It provides a portable record chain:
 Claim -> Attestation -> Ledger Entry -> Signed Checkpoint
 ```
 
-DELTA is not a cryptocurrency, token, marketplace, SaaS platform, or user-account system. It is a cryptographic protocol and reference implementation for creating, verifying, and publishing tamper-evident records of declared digital change.
+DELTA is not a cryptocurrency, token, marketplace, SaaS platform, or user-account system.
+
+It is a cryptographic protocol and reference implementation for creating, verifying, and publishing tamper-evident records of declared digital change.
+
+---
+
+## Add DELTA to CI in 60 Seconds
+
+DELTA can be added to GitHub Actions as a verification-only CI workflow.
+
+Create:
+
+```text
+.github/workflows/delta-verify.yml
+```
+
+with:
+
+```yaml
+name: DELTA Verify
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  delta-verify:
+    name: DELTA public proof verification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository byte-exact
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Assert DELTA byte-exact Git policy
+        shell: bash
+        run: |
+          test -f .gitattributes
+          grep -q '^\* -text$' .gitattributes
+          git check-attr text -- src/genesis_generator.py | tee /tmp/delta-git-attr.txt
+          grep -q 'text: unset' /tmp/delta-git-attr.txt
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install DELTA dependencies
+        run: python -m pip install cryptography
+
+      - name: Verify DELTA public proofs
+        run: python src/delta_cli.py verify-all
+```
+
+Expected CI result:
+
+```text
+Genesis verifier: OK
+Code Change Proof verifier: OK
+Private Payload Proof verifier: OK
+AI Agent Proof verifier: OK
+
+DELTA CLI RESULT: OK
+```
+
+Security boundary:
+
+- no private keys are required,
+- no private payloads are required,
+- no secrets are required,
+- no backend service is required,
+- no token system is required.
+
+See also:
+
+- [GitHub Action Integration](docs/integrations/github-action.md)
+- [GitHub Action Example](examples/github-action/README.md)
 
 ---
 
@@ -46,7 +130,7 @@ This boundary is intentional. DELTA is a cryptographic accountability layer, not
 
 The DELTA Web Explorer verifies public DELTA JSON artifacts directly in the browser:
 
-🔎 https://tomaszluszcz83-ship-it.github.io/delta-protocol/
+https://tomaszluszcz83-ship-it.github.io/delta-protocol/
 
 Security model:
 
@@ -157,7 +241,9 @@ demo-claim/
   executor_signature.json
 ```
 
-The private key is not printed to the screen. By default, keys are written outside the repository under:
+The private key is not printed to the screen.
+
+By default, keys are written outside the repository under:
 
 ```text
 ~/.delta/keys/
@@ -266,13 +352,14 @@ published_at
 
 ## Developer Adoption Examples
 
-DELTA includes three public adoption examples covering code, business privacy, and AI accountability.
+DELTA includes public adoption examples covering code, business privacy, AI accountability, and CI/CD visibility.
 
 | Example | Path | What it demonstrates |
 |---|---|---|
-| Code Change Proof | `examples/code-change-proof/` | Git & CI/CD proof of a code change |
-| Private Payload Proof | `examples/private-payload-proof/` | Blind Auditing / NDA proof without exposing private bytes |
-| AI Agent Proof | `examples/ai-agent-proof/` | Machine Accountability & AI Executions |
+| Code Change Proof | `examples/code-change-proof/` | Git and CI/CD proof of a code change |
+| Private Payload Proof | `examples/private-payload-proof/` | Blind auditing / NDA proof without exposing private bytes |
+| AI Agent Proof | `examples/ai-agent-proof/` | Machine accountability and AI executions |
+| GitHub Action Example | `examples/github-action/` | DELTA verification in GitHub Actions |
 
 Run all public verifiers through the DELTA CLI:
 
@@ -402,7 +489,9 @@ without publishing the private evidence bytes.
 
 Later, the private evidence can be disclosed to an authorized party. If the recomputed hash matches the public `evidence_hash`, the evidence is cryptographically bound to the original proof.
 
-This is a privacy-preserving hash-commitment model. It is not a general-purpose zero-knowledge proof system.
+This is a privacy-preserving hash-commitment model.
+
+It is not a general-purpose zero-knowledge proof system.
 
 ---
 
@@ -422,7 +511,7 @@ A public key can be associated with an organization or system through external p
 The CLI key generation command prints a DNS TXT preparation hint:
 
 ```text
-delta-pubkey=<public-key>
+delta-pubkey=
 ```
 
 This prepares the protocol for future PKI layers without requiring user accounts or centralized identity.
@@ -432,25 +521,31 @@ This prepares the protocol for future PKI layers without requiring user accounts
 ## Repository Map
 
 ```text
+.github/
+  workflows/
+    delta-verify.yml          # DELTA verification workflow for GitHub Actions
+
 src/
-  delta_cli.py                  # DELTA CLI verifier and Write Mode
+  delta_cli.py                # DELTA CLI verifier and Write Mode
 
 examples/
-  code-change-proof/            # Git & CI/CD proof example
-  private-payload-proof/        # Blind auditing / NDA example
-  ai-agent-proof/               # Machine accountability example
+  code-change-proof/          # Git and CI/CD proof example
+  private-payload-proof/      # Blind auditing / NDA example
+  ai-agent-proof/             # Machine accountability example
+  github-action/              # CI/CD verification example
 
 docs/
-  index.html                    # DELTA Web Explorer for GitHub Pages
+  index.html                  # DELTA Web Explorer for GitHub Pages
   app.js
   style.css
   README.md
-
-docs/spec/
-  DELTA-0-yellow-paper.md
-  threat-model.md
-  canonicalization.md
-  cryptographic-structures.md
+  integrations/
+    github-action.md          # GitHub Actions integration guide
+  spec/
+    DELTA-0-yellow-paper.md
+    threat-model.md
+    canonicalization.md
+    cryptographic-structures.md
 ```
 
 ---
@@ -471,6 +566,8 @@ v0.7-alpha-attest
 v0.7.0-write-mode-complete
 v0.8.0-web-explorer-mvp
 v0.9.0-yellow-paper
+v1.0.0-rc1
+v1.1.0-github-action-mvp
 ```
 
 ---
@@ -511,14 +608,15 @@ DELTA-0 currently includes:
 - CLI verification,
 - CLI Write Mode,
 - browser-only Web Explorer,
-- formal Yellow Paper and specification draft.
+- formal Yellow Paper and specification draft,
+- GitHub Actions verification workflow.
 
 Current direction:
 
 ```text
-v1.0 Release Candidate
-Polish & Audit
-No new cryptographic features
+Developer adoption
+CI/CD integration
+SDK Core
 ```
 
 ---
