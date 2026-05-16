@@ -1,0 +1,12 @@
+{
+  "type": "delta_signature",
+  "protocol_version": "DELTA-0",
+  "example_version": "DELTA-0 v0.5.3",
+  "role": "checkpoint_signer",
+  "alg": "Ed25519",
+  "public_key": "ed25519:x_KHMz8tLLQTZDgGwnXHxhp7yDqf95xO_K8UntbdX14",
+  "target_type": "delta_signed_checkpoint",
+  "target_hash": "sha256:d49e6da877f42962416a36c4e50631c4adab3648dfd24aa23885ab1a346d279f",
+  "signature": "ed25519sig:NGmFfq5s4yhgAEsRrxteE6hvmBRvyEXGRKNUaI2D3J0pIAEyO96t-IOAI8ru4NADibmpu6AYTonJ6wrDnmHdCg",
+  "timestamp": "2026-05-16T11:39:29Z"
+}

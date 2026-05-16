@@ -1,0 +1,15 @@
+{
+  "type": "delta_claim",
+  "protocol_version": "DELTA-0",
+  "example_version": "DELTA-0 v0.5.3",
+  "claim_type": "code_change",
+  "executor_pubkey": "ed25519:K1qKgQQrN3cQn8HFM9WycnhrPDU0qomPEBgScJ-sj1M",
+  "before_hash": "sha256:4320e138fc70542a377e7ac2b2c90e118bee8db99cb11cb7ac6ffaef1e52db37",
+  "before_git_commit": "1111111111111111111111111111111111111111",
+  "action": "Fixed payment gateway timeout validation logic.",
+  "after_hash": "sha256:ac1f9fd3bfa4654c38b25d0e1e7d54d87886a0f13757e05277aace615b469bb2",
+  "after_git_commit": "2222222222222222222222222222222222222222",
+  "evidence_hash": "sha256:79cd83a1d760ae9973103a4da2a730dfc04a691db571dca4333d560c91f2f621",
+  "evidence_path": "examples/code-change-proof/evidence/test_results.log",
+  "timestamp": "2026-05-16T11:39:29Z"
+}
