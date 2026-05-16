@@ -1,0 +1,17 @@
+{
+  "type": "delta_attestation",
+  "protocol_version": "DELTA-0",
+  "example_version": "DELTA-0 v0.6.1",
+  "attestation_type": "private_payload_hash_commitment_verification",
+  "verifier_pubkey": "ed25519:_tvbTW-Q6ud9Ez8C2QWM1W2Ez_7EWnqICYUUuUlLcEg",
+  "verifier_name": "Local Compliance Verification Key",
+  "target_claim_hash": "sha256:4fc5bcbe7788d7c400308067d793f807e24956274819472b244f43fab3162c39",
+  "target_executor_sig_hash": "sha256:d4d1fc45604fb9efdc4e171dccd885951dfb62a66a2adae3f70771e092ea59c4",
+  "verification_policy_hash": "sha256:8adc458b1e71ab2d3430b5506b16a71911699e58bc50bd976674d642b073bbb6",
+  "private_payload_manifest_hash": "sha256:85d4c7601a9672c32355443431a62400ab04d7b3044ba376614b587d2deb7e30",
+  "evidence_hash": "sha256:b3853069bcf5c912f5a5e668c2b858eb70a2c9fb0eadd304ad1ebe8b7ea91706",
+  "publication_mode": "ledger_required",
+  "intended_ledger_id": "delta-ledger:private-payload-proof-example",
+  "result": "HASH_COMMITMENT_VERIFIED",
+  "timestamp": "2026-05-16T13:31:44Z"
+}

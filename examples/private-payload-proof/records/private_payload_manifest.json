@@ -1,0 +1,13 @@
+{
+  "type": "delta_private_payload_manifest",
+  "protocol_version": "DELTA-0",
+  "example_version": "DELTA-0 v0.6.1",
+  "payload_id": "private-payload:nda-demo-001",
+  "payload_status": "not_public",
+  "privacy_model": "hash_commitment_only",
+  "payload_mime_type": "application/octet-stream",
+  "payload_size_bytes": 128,
+  "payload_hash": "sha256:b3853069bcf5c912f5a5e668c2b858eb70a2c9fb0eadd304ad1ebe8b7ea91706",
+  "public_disclosure": "hash_only",
+  "note": "Private payload bytes are intentionally not published."
+}

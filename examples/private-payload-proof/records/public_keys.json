@@ -1,0 +1,8 @@
+{
+  "type": "delta_public_keys",
+  "protocol_version": "DELTA-0",
+  "example_version": "DELTA-0 v0.6.1",
+  "executor_pubkey": "ed25519:iC40o3wgferBUWJ9d-OnqXL2zBFGzdtT1kpJRNkOoRo",
+  "verifier_pubkey": "ed25519:_tvbTW-Q6ud9Ez8C2QWM1W2Ez_7EWnqICYUUuUlLcEg",
+  "verifier_name": "Local Compliance Verification Key"
+}

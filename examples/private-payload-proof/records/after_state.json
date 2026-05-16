@@ -1,0 +1,9 @@
+{
+  "type": "private_payload_state",
+  "protocol_version": "DELTA-0",
+  "example_version": "DELTA-0 v0.6.1",
+  "payload_id": "private-payload:nda-demo-001",
+  "payload_visibility": "private",
+  "status": "signed",
+  "description": "Private NDA document was accepted and countersigned. Payload bytes are not public."
+}

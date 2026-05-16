@@ -30,12 +30,6 @@ class VerificationResult:
 
 
 def repo_root() -> Path:
-    """
-    Locate repository root from this file location.
-
-    This intentionally does not use Path.cwd(), because the CLI may be
-    executed from any terminal working directory.
-    """
     return Path(__file__).resolve().parents[1]
 
 
@@ -57,6 +51,14 @@ def build_tasks(root: Path) -> dict[str, VerificationTask]:
             / "code-change-proof"
             / "code_change_public_verifier.py",
             ok_marker="DELTA CODE CHANGE PROOF VERIFIER RESULT: OK",
+        ),
+        "private-payload": VerificationTask(
+            name="Private Payload Proof verifier",
+            script_path=root
+            / "examples"
+            / "private-payload-proof"
+            / "private_payload_public_verifier.py",
+            ok_marker="DELTA PRIVATE PAYLOAD PROOF VERIFIER RESULT: OK",
         ),
     }
 
@@ -183,6 +185,23 @@ def command_verify_code_change(args: argparse.Namespace) -> int:
     return 0 if result.ok else 1
 
 
+def command_verify_private_payload(args: argparse.Namespace) -> int:
+    root = repo_root()
+    task = build_tasks(root)["private-payload"]
+
+    print(DELTA_CLI_VERSION)
+    print("Command: verify-private-payload")
+    print("")
+
+    result = run_task(task, root)
+    print_result(result, verbose=args.verbose)
+
+    print("")
+    print("DELTA CLI RESULT: OK" if result.ok else "DELTA CLI RESULT: FAILED")
+
+    return 0 if result.ok else 1
+
+
 def command_verify_all(args: argparse.Namespace) -> int:
     root = repo_root()
     tasks = build_tasks(root)
@@ -194,6 +213,7 @@ def command_verify_all(args: argparse.Namespace) -> int:
     results: List[VerificationResult] = [
         run_task(tasks["genesis"], root),
         run_task(tasks["code-change"], root),
+        run_task(tasks["private-payload"], root),
     ]
 
     for result in results:
@@ -242,6 +262,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print full verifier output.",
     )
     verify_code_change_parser.set_defaults(func=command_verify_code_change)
+
+    verify_private_payload_parser = subparsers.add_parser(
+        "verify-private-payload",
+        help="Run the Private Payload Proof example verifier.",
+    )
+    verify_private_payload_parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print full verifier output.",
+    )
+    verify_private_payload_parser.set_defaults(func=command_verify_private_payload)
 
     verify_all_parser = subparsers.add_parser(
         "verify-all",

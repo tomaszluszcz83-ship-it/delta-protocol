@@ -1,0 +1,14 @@
+{
+  "type": "delta_claim",
+  "protocol_version": "DELTA-0",
+  "example_version": "DELTA-0 v0.6.1",
+  "claim_type": "private_payload_change",
+  "executor_pubkey": "ed25519:iC40o3wgferBUWJ9d-OnqXL2zBFGzdtT1kpJRNkOoRo",
+  "before_hash": "sha256:b46c52ea126aa4d5d015ed0fc3707d3eae491f0005233a478dca55eedc3ecbad",
+  "action": "Private NDA accepted and countersigned.",
+  "after_hash": "sha256:dff5bfb603ee9f8c321240f2a7c8c0f5d04b71e64361f06fa9f2919763fa65d5",
+  "evidence_hash": "sha256:b3853069bcf5c912f5a5e668c2b858eb70a2c9fb0eadd304ad1ebe8b7ea91706",
+  "private_payload_manifest_hash": "sha256:85d4c7601a9672c32355443431a62400ab04d7b3044ba376614b587d2deb7e30",
+  "publication_model": "hash_commitment_only",
+  "timestamp": "2026-05-16T13:31:44Z"
+}
