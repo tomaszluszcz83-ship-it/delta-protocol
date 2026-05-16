@@ -34,6 +34,7 @@ Expected result:
 ```text
 Genesis verifier: OK
 Code Change Proof verifier: OK
+Private Payload Proof verifier: OK
 DELTA CLI RESULT: OK
 ```
 
@@ -42,6 +43,7 @@ For individual verification:
 ```bash
 python src/delta_cli.py verify-genesis
 python src/delta_cli.py verify-code-change
+python src/delta_cli.py verify-private-payload
 ```
 
 Current CLI milestone:
@@ -94,6 +96,68 @@ This example demonstrates:
 - Signed Checkpoint
 - Public verifier
 - Evidence byte stability protected by `.gitattributes`
+
+This example does not modify or replace the DELTA-0 Genesis Release Candidate v0.5.2.
+
+---
+
+## Private Payload Proof Example
+
+DELTA also includes a privacy-focused adoption example:
+
+`examples/private-payload-proof`
+
+This example shows how DELTA can prove a private digital change without publishing the private payload.
+
+Core principle:
+
+```text
+Proof without exposure.
+```
+
+Flow:
+
+```text
+Before: private document draft
+Action: private document accepted and countersigned
+After: private document signed
+Evidence: SHA-256 hash commitment to private payload
+Verifier: Local Compliance Verification Key
+Result: public proof without exposing private bytes
+```
+
+Run the example verifier:
+
+```bash
+python examples/private-payload-proof/private_payload_public_verifier.py
+```
+
+Or use DELTA CLI:
+
+```bash
+python src/delta_cli.py verify-private-payload
+python src/delta_cli.py verify-all
+```
+
+Expected result:
+
+```text
+DELTA PRIVATE PAYLOAD PROOF VERIFIER RESULT: OK
+```
+
+This example demonstrates:
+
+- private payload hash commitment
+- public private-payload manifest
+- before and after private state records
+- Delta Claim
+- Executor signature
+- Delta Attestation
+- Verifier signature
+- Ledger Entry
+- Signed Checkpoint
+- Chain Proof
+- public verification without private payload disclosure
 
 This example does not modify or replace the DELTA-0 Genesis Release Candidate v0.5.2.
 
@@ -197,14 +261,37 @@ DELTA-0/
 │   ├── DELTA-0-genesis-public.zip
 │   └── DELTA-0-genesis-public.zip.sha256.txt
 └── examples/
-    └── code-change-proof/
+    ├── code-change-proof/
+    │   ├── README.md
+    │   ├── code_change_public_verifier.py
+    │   ├── evidence/
+    │   │   └── test_results.log
+    │   └── records/
+    │       ├── before_state.json
+    │       ├── after_state.json
+    │       ├── claim.json
+    │       ├── executor_signature.json
+    │       ├── attestation.json
+    │       ├── verifier_signature.json
+    │       ├── ledger_entry.json
+    │       ├── ledger.json
+    │       ├── chain_proof.json
+    │       ├── checkpoint.json
+    │       ├── checkpoint_signature.json
+    │       ├── public_keys.json
+    │       ├── verification_policy.json
+    │       ├── hashes.json
+    │       ├── hashes.txt
+    │       └── evidence_hash.txt
+    └── private-payload-proof/
         ├── README.md
-        ├── code_change_public_verifier.py
-        ├── evidence/
-        │   └── test_results.log
+        ├── private_payload_public_verifier.py
         └── records/
             ├── before_state.json
             ├── after_state.json
+            ├── private_payload_manifest.json
+            ├── verification_policy.json
+            ├── public_keys.json
             ├── claim.json
             ├── executor_signature.json
             ├── attestation.json
@@ -214,11 +301,8 @@ DELTA-0/
             ├── chain_proof.json
             ├── checkpoint.json
             ├── checkpoint_signature.json
-            ├── public_keys.json
-            ├── verification_policy.json
             ├── hashes.json
-            ├── hashes.txt
-            └── evidence_hash.txt
+            └── hashes.txt
 ```
 
 ---
@@ -271,6 +355,32 @@ This protects the raw bytes used to compute:
 
 ---
 
+## Private payload rule
+
+DELTA can prove private payload changes without publishing private payload bytes.
+
+For the Private Payload Proof example, the private payload is not committed to the repository and is not written to disk as a payload file.
+
+The public proof contains only:
+
+- private payload hash
+- private payload manifest
+- before state
+- after state
+- Delta Claim
+- Executor signature
+- Delta Attestation
+- Verifier signature
+- Ledger Entry
+- Signed Checkpoint
+- Chain Proof
+
+Rule:
+
+Evidence by hash, not exposure.
+
+---
+
 ## How to verify with DELTA CLI
 
 Run all public verifiers:
@@ -282,6 +392,9 @@ python src/delta_cli.py verify-all
 Expected final result:
 
 ```text
+Genesis verifier: OK
+Code Change Proof verifier: OK
+Private Payload Proof verifier: OK
 DELTA CLI RESULT: OK
 ```
 
@@ -290,6 +403,7 @@ Run individual verifiers:
 ```bash
 python src/delta_cli.py verify-genesis
 python src/delta_cli.py verify-code-change
+python src/delta_cli.py verify-private-payload
 ```
 
 Show CLI version:
@@ -344,6 +458,22 @@ DELTA CODE CHANGE PROOF VERIFIER RESULT: OK
 
 ---
 
+## How to verify the Private Payload Proof example directly
+
+Run:
+
+```bash
+python examples/private-payload-proof/private_payload_public_verifier.py
+```
+
+Expected final result:
+
+```text
+DELTA PRIVATE PAYLOAD PROOF VERIFIER RESULT: OK
+```
+
+---
+
 ## What the public Genesis verifier checks
 
 The public Genesis verifier checks:
@@ -393,6 +523,35 @@ The Code Change Proof verifier checks:
 13. Chain proof links the Ledger Entry to the checkpoint.
 14. `hashes.json` and `hashes.txt` match recomputed hashes.
 15. Evidence bytes are protected from Git line-ending rewriting.
+
+---
+
+## What the Private Payload Proof verifier checks
+
+The Private Payload Proof verifier checks:
+
+1. The example does not contain private payload files or secret files.
+2. The private payload is represented by a SHA-256 hash commitment only.
+3. `before_state.json` and `after_state.json` describe a private payload state change.
+4. The private payload manifest is public but does not contain private payload bytes.
+5. Delta Claim binds:
+   - before state hash
+   - after state hash
+   - private payload hash
+   - private payload manifest hash
+6. Executor signature verifies against the Delta Claim.
+7. Delta Attestation verifies the hash commitment without payload disclosure.
+8. Verifier signature verifies against the Delta Attestation.
+9. Ledger Entry binds:
+   - `claim_hash`
+   - `executor_sig_hash`
+   - `attestation_hash`
+   - `verifier_sig_hash`
+   - `private_payload_manifest_hash`
+10. Checkpoint hash is recomputed.
+11. Checkpoint signature verifies.
+12. Chain proof links the private payload entry to the checkpoint.
+13. `hashes.json` and `hashes.txt` match recomputed hashes.
 
 ---
 
@@ -508,6 +667,7 @@ Current public protocol milestones:
 - `v0.5.3-code-change-proof`
 - `v0.5.4-evidence-line-endings`
 - `v0.6-alpha-cli`
+- `v0.6.1-private-payload-proof`
 
 ---
 
