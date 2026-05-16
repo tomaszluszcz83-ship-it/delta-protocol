@@ -1,29 +1,17 @@
-# DELTA Protocol line-ending and byte-stability policy.
+# DELTA Protocol byte-stability policy.
 #
-# Rule:
-# - Source/docs may be normalized to LF.
-# - Public proof artifacts MUST preserve exact bytes.
+# DELTA public verifiers hash exact bytes.
+# Therefore this repository disables Git CRLF/LF normalization globally.
 #
-# Public verifiers hash bytes, not visual text. Therefore proof artifacts
-# must not be changed by Git CRLF/LF conversion.
+# No file in this repository should be rewritten by Git line-ending conversion.
 
-# Normal text files
-README.md text eol=lf
-src/** text eol=lf
-docs/**/*.html text eol=lf
-docs/**/*.css text eol=lf
-docs/**/*.js text eol=lf
-docs/**/*.md text eol=lf
+* -text
 
-# Public proof artifacts: preserve exact bytes.
-# Do NOT normalize line endings here.
-spec/** -text
-examples/** -text
-
-# Binary artifacts
 *.png binary
 *.jpg binary
 *.jpeg binary
 *.gif binary
 *.webp binary
 *.zip binary
+*.ico binary
+*.pdf binary
