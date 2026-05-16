@@ -1,0 +1,13 @@
+{
+  "type": "delta_attestation",
+  "protocol_version": "DELTA-0",
+  "verifier_pubkey": "ed25519:H2mZnADtw-1QkRxC_YnYlLLOxCkAWb-t-3F380MCf-s",
+  "target_claim_hash": "sha256:9aeddf5627102a9bf135b66e503d2b79d5c49c321391896310d4707a4964100b",
+  "target_executor_sig_hash": "sha256:dcdbcddf84439f2433e94930b9d40eface1a1706ce10e945844a281ad1e48b43",
+  "verification_policy_hash": "sha256:a07321a25d69a370c86fb1b72df4add6c4e96584eba1d2d8f2f4d413201847ce",
+  "evidence_hash": "sha256:a03fea964dbde93565d2f0bb5c47fd526f830fc61c474387b44b68d0a9a8395b",
+  "publication_mode": "ledger_required",
+  "intended_ledger_id": "delta-ledger:genesis-local",
+  "result": "VERIFIED",
+  "verified_at": "2026-05-16T08:04:41Z"
+}

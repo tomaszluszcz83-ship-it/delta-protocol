@@ -1,0 +1,10 @@
+{
+  "type": "delta_signed_checkpoint",
+  "protocol_version": "DELTA-0",
+  "ledger_id": "delta-ledger:genesis-local",
+  "checkpoint_seq": 1,
+  "entry_count": 1,
+  "head_entry_hash": "sha256:6ce9247a98433889461351985e60e6490a09670455c8e78ecc358764f7630477",
+  "published_at": "2026-05-16T08:04:41Z",
+  "verifier_pubkey": "ed25519:H2mZnADtw-1QkRxC_YnYlLLOxCkAWb-t-3F380MCf-s"
+}

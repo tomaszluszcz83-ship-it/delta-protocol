@@ -1,0 +1,20 @@
+{
+  "type": "delta_verification_policy",
+  "protocol_version": "DELTA-0",
+  "policy_id": "delta-genesis-local-verification-policy-v1",
+  "description": "Genesis local verification policy. The verifier confirms that the Genesis Claim, evidence manifest, signatures, ledger entry, and checkpoint are internally consistent according to DELTA-0 v0.5.2.",
+  "rules": [
+    "The Delta Claim must be canonicalizable.",
+    "The Delta Claim must contain SHA-256 hashes with sha256: prefix.",
+    "The Executor signature must verify against the canonical Delta Claim.",
+    "The Attestation must reference the Claim hash.",
+    "The Attestation must reference the Executor signature envelope hash.",
+    "The Attestation result must be VERIFIED.",
+    "The Verifier signature must verify against the canonical Attestation.",
+    "The Ledger Entry must include claim_hash, executor_sig_hash, attestation_hash, and verifier_sig_hash.",
+    "The Genesis Ledger Entry must use the fixed GENESIS_PREV_ENTRY_HASH.",
+    "The Signed Checkpoint must reference the Ledger Entry hash as head_entry_hash.",
+    "The Checkpoint signature must verify against the canonical Signed Checkpoint."
+  ],
+  "created_at": "2026-05-16T08:04:41Z"
+}

@@ -1,0 +1,33 @@
+{
+  "type": "delta_evidence_manifest",
+  "protocol_version": "DELTA-0",
+  "evidence_id": "delta-genesis-evidence-v1",
+  "items": [
+    {
+      "name": "DELTA-0 v0.5.2 Core Structures specification",
+      "path": "spec/DELTA-0-v0.5.2-core-structures.md",
+      "hash": "sha256:695bb0bb199ec68e51acf92279adc120a23f53cd82b7aefd3cda9a2447466907"
+    },
+    {
+      "name": "DELTA-0 Genesis Generator source code",
+      "path": "src/genesis_generator.py",
+      "hash": "sha256:b6710e9c45d4360e84c8c28deda3adb311144713393ca5404e4c9f041168d979"
+    },
+    {
+      "name": "Genesis before statement",
+      "path": "genesis/before_statement.json",
+      "hash": "sha256:698a1d825695fc0f4c9a947ee9829c23490884b185255945391e2dd14c20d230"
+    },
+    {
+      "name": "Genesis after statement",
+      "path": "genesis/after_statement.json",
+      "hash": "sha256:88bb49652f3625fc112514cf139ff617293983d644a3f386091037f8afd68dfb"
+    },
+    {
+      "name": "Genesis local verification policy",
+      "path": "genesis/verification_policy.json",
+      "hash": "sha256:a07321a25d69a370c86fb1b72df4add6c4e96584eba1d2d8f2f4d413201847ce"
+    }
+  ],
+  "created_at": "2026-05-16T08:04:41Z"
+}

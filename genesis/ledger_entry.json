@@ -1,0 +1,12 @@
+{
+  "type": "delta_ledger_entry",
+  "protocol_version": "DELTA-0",
+  "ledger_id": "delta-ledger:genesis-local",
+  "seq": 1,
+  "prev_entry_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "claim_hash": "sha256:9aeddf5627102a9bf135b66e503d2b79d5c49c321391896310d4707a4964100b",
+  "executor_sig_hash": "sha256:dcdbcddf84439f2433e94930b9d40eface1a1706ce10e945844a281ad1e48b43",
+  "attestation_hash": "sha256:19e480fba7e382efdb040545847a11de4e6058e352cd67914fa07a144b14ab59",
+  "verifier_sig_hash": "sha256:09a7c5ce75c75800c59cb74c61727989994d376c6a1a70bc2f7d75065186cd6f",
+  "included_at": "2026-05-16T08:04:41Z"
+}

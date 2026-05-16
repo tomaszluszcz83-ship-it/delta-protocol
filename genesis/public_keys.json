@@ -1,0 +1,7 @@
+{
+  "type": "delta_public_keys",
+  "protocol_version": "DELTA-0",
+  "executor_pubkey": "ed25519:iJkCAMzQ40JyXxnNORxAfYXjDJMorm7goSjPnxttnQM",
+  "verifier_pubkey": "ed25519:H2mZnADtw-1QkRxC_YnYlLLOxCkAWb-t-3F380MCf-s",
+  "created_at": "2026-05-16T08:04:41Z"
+}

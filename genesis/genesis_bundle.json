@@ -1,0 +1,90 @@
+{
+  "type": "delta_genesis_bundle",
+  "protocol_version": "DELTA-0",
+  "spec_version": "DELTA-0 v0.5.2",
+  "status": "DELTA_VERIFIED",
+  "ledger_id": "delta-ledger:genesis-local",
+  "generated_at": "2026-05-16T08:04:41Z",
+  "public_keys": {
+    "executor_pubkey": "ed25519:iJkCAMzQ40JyXxnNORxAfYXjDJMorm7goSjPnxttnQM",
+    "verifier_pubkey": "ed25519:H2mZnADtw-1QkRxC_YnYlLLOxCkAWb-t-3F380MCf-s"
+  },
+  "hashes": {
+    "before_hash": "sha256:698a1d825695fc0f4c9a947ee9829c23490884b185255945391e2dd14c20d230",
+    "after_hash": "sha256:88bb49652f3625fc112514cf139ff617293983d644a3f386091037f8afd68dfb",
+    "evidence_hash": "sha256:a03fea964dbde93565d2f0bb5c47fd526f830fc61c474387b44b68d0a9a8395b",
+    "verification_policy_hash": "sha256:a07321a25d69a370c86fb1b72df4add6c4e96584eba1d2d8f2f4d413201847ce",
+    "claim_hash": "sha256:9aeddf5627102a9bf135b66e503d2b79d5c49c321391896310d4707a4964100b",
+    "executor_sig_hash": "sha256:dcdbcddf84439f2433e94930b9d40eface1a1706ce10e945844a281ad1e48b43",
+    "attestation_hash": "sha256:19e480fba7e382efdb040545847a11de4e6058e352cd67914fa07a144b14ab59",
+    "verifier_sig_hash": "sha256:09a7c5ce75c75800c59cb74c61727989994d376c6a1a70bc2f7d75065186cd6f",
+    "entry_hash": "sha256:6ce9247a98433889461351985e60e6490a09670455c8e78ecc358764f7630477",
+    "checkpoint_hash": "sha256:02b78772915a48411e34b4c267475d99d72d3cd832f66e9d508ad76bb5d8f422",
+    "checkpoint_sig_hash": "sha256:87bae359e4524a19939bfdf8f93f0233c2fa42d1cdffeb1cd60034b7ed45fc96",
+    "genesis_prev_entry_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "files": [
+    {
+      "path": "genesis/before_statement.json",
+      "file_hash": "sha256:6ded80bb636cbefc279373131dc3147bb13db81b5903df7b0e2f9bc6a0ad115f"
+    },
+    {
+      "path": "genesis/after_statement.json",
+      "file_hash": "sha256:3683622879123e2a6ace636c856de856c6b68a3559699162bb8f38a2edeb702d"
+    },
+    {
+      "path": "genesis/verification_policy.json",
+      "file_hash": "sha256:ef33ffeb317effe8e010e649e024c3fbcc0f6330a43001ccd18e2788ed2599f8"
+    },
+    {
+      "path": "genesis/evidence_manifest.json",
+      "file_hash": "sha256:48ac0371a3f01447ddd774dc804d62d242bac5c6793c7508c54a672d7658da15"
+    },
+    {
+      "path": "genesis/public_keys.json",
+      "file_hash": "sha256:43086d70f22a74a35472334b403ef2dfa57d9a8d24f70c245450bf96749739a4"
+    },
+    {
+      "path": "genesis/claim.json",
+      "file_hash": "sha256:f76ad6eed6b761a56927a6b9a2cb270d9e1df54a70da689ce58f447b39b58214"
+    },
+    {
+      "path": "genesis/executor_signature.json",
+      "file_hash": "sha256:4d5c5c4d05e9f855b0ccaaf8223e51b0e527629a0b8d4063d8f487b0a764eca0"
+    },
+    {
+      "path": "genesis/attestation.json",
+      "file_hash": "sha256:bc9ea38ce5b7faa02f882a2d6ee5667a15ab1255fde855d0a404abee0593a072"
+    },
+    {
+      "path": "genesis/verifier_signature.json",
+      "file_hash": "sha256:9df026c0beb7d36ebbaa357b55a00d704fe5f603470199cd98ce87c2f1a1af70"
+    },
+    {
+      "path": "genesis/ledger_entry.json",
+      "file_hash": "sha256:216ebfeaeb8b1f16382fb00e245fb5ab79fdd2c5f6dd24266159e0249bb9ec7c"
+    },
+    {
+      "path": "genesis/ledger.json",
+      "file_hash": "sha256:e7c94ac1bf5ad16c85959399e74b6bf03a9745be773463a0a31d85e1d4f5ba94"
+    },
+    {
+      "path": "genesis/chain_proof.json",
+      "file_hash": "sha256:6939937d7dcdcdbd3657fdad74c649bcca10d0f93964617935ac040a5b5b8c26"
+    },
+    {
+      "path": "genesis/checkpoint.json",
+      "file_hash": "sha256:032dd72613a8eecb8eacdf0a728c6d99cdade5818f4a91f8fef1eca6db7cbae7"
+    },
+    {
+      "path": "genesis/checkpoint_signature.json",
+      "file_hash": "sha256:9b5cc1c8d65dac0fd00d4860d874a14fb7f78928d368a53196f432f02867dade"
+    }
+  ],
+  "formal_meaning": "DELTA_VERIFIED means that the Genesis Claim, Executor signature, Attestation, Verifier signature, Ledger Entry, chain proof, Signed Checkpoint, and Checkpoint signature are cryptographically consistent under DELTA-0 v0.5.2.",
+  "limitations": [
+    "DELTA_VERIFIED does not mean absolute truth about the physical world.",
+    "DELTA_VERIFIED does not mean the Verifier cannot be wrong.",
+    "DELTA_VERIFIED means the declared change, evidence hash, signatures, ledger entry, and checkpoint are cryptographically bound and tamper-evident."
+  ]
+}

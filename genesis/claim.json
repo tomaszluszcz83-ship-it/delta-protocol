@@ -1,0 +1,11 @@
+{
+  "type": "delta_claim",
+  "protocol_version": "DELTA-0",
+  "claim_type": "genesis_release",
+  "executor_pubkey": "ed25519:iJkCAMzQ40JyXxnNORxAfYXjDJMorm7goSjPnxttnQM",
+  "before_hash": "sha256:698a1d825695fc0f4c9a947ee9829c23490884b185255945391e2dd14c20d230",
+  "action": "DELTA-0 protocol genesis release created",
+  "after_hash": "sha256:88bb49652f3625fc112514cf139ff617293983d644a3f386091037f8afd68dfb",
+  "evidence_hash": "sha256:a03fea964dbde93565d2f0bb5c47fd526f830fc61c474387b44b68d0a9a8395b",
+  "created_at": "2026-05-16T08:04:41Z"
+}

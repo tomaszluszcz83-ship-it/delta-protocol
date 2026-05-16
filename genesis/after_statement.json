@@ -1,0 +1,6 @@
+{
+  "type": "delta_genesis_after_statement",
+  "protocol_version": "DELTA-0",
+  "statement": "The first DELTA Proof of Change record exists.",
+  "created_at": "2026-05-16T08:04:41Z"
+}

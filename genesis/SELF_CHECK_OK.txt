@@ -1,0 +1,42 @@
+DELTA-0 Genesis Generator Self-Check
+
+OK hash format: claim_hash
+OK hash format: executor_sig_hash
+OK hash format: attestation_hash
+OK hash format: verifier_sig_hash
+OK hash format: entry_hash
+OK hash format: checkpoint_hash
+OK hash format: checkpoint_sig_hash
+OK hash format: before_hash
+OK hash format: after_hash
+OK hash format: evidence_hash
+OK hash format: verification_policy_hash
+OK claim_hash recomputed
+OK executor_sig_hash recomputed
+OK attestation_hash recomputed
+OK verifier_sig_hash recomputed
+OK entry_hash recomputed
+OK checkpoint_hash recomputed
+OK checkpoint_sig_hash recomputed
+OK claim.before_hash matches before_statement
+OK claim.after_hash matches after_statement
+OK claim.evidence_hash matches evidence_manifest
+OK attestation.evidence_hash matches claim.evidence_hash
+OK attestation.verification_policy_hash matches verification_policy
+OK executor signature target_hash matches claim_hash
+OK attestation.target_claim_hash matches claim_hash
+OK attestation.target_executor_sig_hash matches executor_sig_hash
+OK verifier signature target_hash matches attestation_hash
+OK genesis prev_entry_hash fixed zero hash
+OK ledger_entry.claim_hash matches claim_hash
+OK ledger_entry.executor_sig_hash matches executor_sig_hash
+OK ledger_entry.attestation_hash matches attestation_hash
+OK ledger_entry.verifier_sig_hash matches verifier_sig_hash
+OK checkpoint.head_entry_hash matches entry_hash
+OK checkpoint.entry_count = 1
+OK executor signature verifies against claim
+OK verifier signature verifies against attestation
+OK checkpoint signature verifies against checkpoint
+OK DELTA_VERIFIED conditions satisfied for Genesis
+
+RESULT: OK
