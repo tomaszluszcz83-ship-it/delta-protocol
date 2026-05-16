@@ -1,8 +1,8 @@
 {
   "type": "delta_public_keys",
   "protocol_version": "DELTA-0",
-  "example_version": "DELTA-0 v0.5.3",
-  "executor_pubkey": "ed25519:K1qKgQQrN3cQn8HFM9WycnhrPDU0qomPEBgScJ-sj1M",
-  "verifier_pubkey": "ed25519:x_KHMz8tLLQTZDgGwnXHxhp7yDqf95xO_K8UntbdX14",
+  "example_version": "DELTA-0 v0.5.4",
+  "executor_pubkey": "ed25519:a1e4OUuWodDTVh5XNvPB4FFjn-qJ9264GzVk86Jbdyg",
+  "verifier_pubkey": "ed25519:nSqD7OwyLQPJQ3u0cTNpvSPITAefySZGhB1sbuo098w",
   "verifier_name": "Local CI Server Verification Key"
 }

@@ -1,12 +1,12 @@
 {
   "type": "delta_signature",
   "protocol_version": "DELTA-0",
-  "example_version": "DELTA-0 v0.5.3",
+  "example_version": "DELTA-0 v0.5.4",
   "role": "executor",
   "alg": "Ed25519",
-  "public_key": "ed25519:K1qKgQQrN3cQn8HFM9WycnhrPDU0qomPEBgScJ-sj1M",
+  "public_key": "ed25519:a1e4OUuWodDTVh5XNvPB4FFjn-qJ9264GzVk86Jbdyg",
   "target_type": "delta_claim",
-  "target_hash": "sha256:b92e80f372452c0abe711ecb8c31a861a3b3c8558d6e2b3eed8fde7fe90e5207",
-  "signature": "ed25519sig:wtFN0zZD_3gJWPVeRPt2_2GVwsu3gVfki42CA3B_MGI7ThmPfqU9Ens8O8kHIO6NKD2G-KquiYlMogpL07hoAg",
-  "timestamp": "2026-05-16T11:39:29Z"
+  "target_hash": "sha256:e0fb99843c26b340c06080582d6cd2ff65074bc243a3ff07ef062b330fadc95a",
+  "signature": "ed25519sig:-HX-E26WAsay7pakpfCMWoHfNHuA-RkHZCXmgnGTXEDltAYqo0z1vLiiPLEykvUVVOyajkeSwiwget9qaHmcAA",
+  "timestamp": "2026-05-16T12:23:16Z"
 }

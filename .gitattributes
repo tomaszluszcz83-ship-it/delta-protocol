@@ -1,0 +1,11 @@
+# DELTA Protocol repository line-ending policy
+
+# Source and documentation files should be stable LF text.
+*.md text eol=lf
+*.py text eol=lf
+*.json text eol=lf
+*.txt text eol=lf
+
+# DELTA evidence files are protocol evidence bytes.
+# Git must not rewrite them because their raw bytes are hashed.
+examples/code-change-proof/evidence/* -text

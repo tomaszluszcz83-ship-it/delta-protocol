@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import base64
 import hashlib
@@ -17,7 +17,7 @@ EVIDENCE_DIR = EXAMPLE_DIR / "evidence"
 RECORDS_DIR = EXAMPLE_DIR / "records"
 
 PROTOCOL_VERSION = "DELTA-0"
-EXAMPLE_VERSION = "DELTA-0 v0.5.3"
+EXAMPLE_VERSION = "DELTA-0 v0.5.4"
 LEDGER_ID = "delta-ledger:code-change-proof-example"
 ZERO_HASH = "sha256:" + ("0" * 64)
 
@@ -246,7 +246,7 @@ def main() -> None:
     checks: List[str] = []
 
     print("")
-    print("DELTA-0 v0.5.3 Code Change Proof Verifier")
+    print("DELTA-0 v0.5.4 Code Change Proof Verifier")
     print("-----------------------------------------")
     print("This verifier checks the example without private keys.")
     print("")
