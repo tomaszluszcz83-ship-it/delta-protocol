@@ -17,7 +17,7 @@ The test uses a fresh clone in a temporary directory and replays the measurement
 ## Replay environment
 
 - Repository URL: `https://github.com/tomaszluszcz83-ship-it/delta-protocol.git`
-- Fresh clone path: `C:\Users\PC\AppData\Local\Temp\delta-d001-replay-1x993mv6\repo`
+- Fresh clone path: `C:\Users\PC\AppData\Local\Temp\delta-d001-replay-2dyiq0w8\repo`
 - Method definition path: `.delta/methods/delta-cli-verify-all-v1.json`
 - Command: `python src/delta_cli.py verify-all`
 
