@@ -1,0 +1,29 @@
+{
+  "type": "delta_measurement_method",
+  "method_id": "delta-cli-verify-all-v1",
+  "method_version": "1.0.0",
+  "description": "Run the DELTA CLI public proof verification suite.",
+  "executor": "subprocess",
+  "command": [
+    "python",
+    "src/delta_cli.py",
+    "verify-all"
+  ],
+  "success_condition": {
+    "return_code": 0,
+    "stdout_contains": "DELTA CLI RESULT: OK"
+  },
+  "outputs": [
+    {
+      "name": "stdout",
+      "path": "delta-sensor-output.log",
+      "hash_algorithm": "sha256"
+    },
+    {
+      "name": "stderr",
+      "path": "delta-sensor-error.log",
+      "hash_algorithm": "sha256"
+    }
+  ],
+  "replay_notes": "Install repository dependencies, check out the target commit, then run the command exactly as declared."
+}
