@@ -15,3 +15,10 @@ dist/
 __pycache__/
 *.py[cod]
 .delta/artifacts/
+# DELTA private legal/IP materials
+DELTA-LEGAL-PRIVATE/
+docs/legal/private/
+owner-identity-private.md
+*private-identity*
+*.nda.local.md
+*.trade-secret.local.md
