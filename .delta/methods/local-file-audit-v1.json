@@ -1,0 +1,42 @@
+{
+  "type": "delta_measurement_method",
+  "method_id": "local-file-audit-v1",
+  "method_version": "1.0.0",
+  "description": "Audit a local file or directory tree using deterministic content hashes and a signed DELTA Sensor Record.",
+  "executor": "subprocess",
+  "command": [
+    "python",
+    "tools/delta_file_audit.py",
+    "--target",
+    "README.md",
+    "--manifest-out",
+    ".delta/artifacts-file-audit/file-audit-manifest.json"
+  ],
+  "success_condition": {
+    "return_code": 0,
+    "stdout_contains": "DELTA_FILE_AUDIT_RESULT: OK"
+  },
+  "outputs": [
+    {
+      "name": "file_audit_manifest",
+      "path": ".delta/artifacts-file-audit/file-audit-manifest.json",
+      "hash_algorithm": "sha256"
+    },
+    {
+      "name": "stdout",
+      "path": "delta-sensor-output.log",
+      "hash_algorithm": "sha256"
+    },
+    {
+      "name": "stderr",
+      "path": "delta-sensor-error.log",
+      "hash_algorithm": "sha256"
+    }
+  ],
+  "replay_notes": [
+    "Run from a fresh clone at the recorded commit_after.",
+    "Install the local Python SDK package before running the DELTA sensor.",
+    "This method hashes file contents only and intentionally excludes atime, ctime, and mtime.",
+    "The default CI target is README.md for a stable first MVP."
+  ]
+}
