@@ -26,7 +26,60 @@ Instead, it generates a sensor-level artifact:
 .delta/artifacts/delta-record.json
 ```
 
-This artifact is a hash-committed sensor record envelope. It is not yet a signed DELTA-0 bundle.
+This artifact is a signed, hash-committed sensor record envelope. It is not yet a full signed DELTA-0 bundle.
+
+---
+
+## Required signing key
+
+The sensor requires an Ed25519 private key in the environment:
+
+```text
+DELTA_SENSOR_PRIVATE_KEY
+```
+
+Generate a keypair locally:
+
+```bash
+python tools/delta_sensor_keygen.py
+```
+
+Store:
+
+```text
+DELTA_SENSOR_PRIVATE_KEY -> GitHub Actions secret
+DELTA_EXECUTOR_PUBLIC_KEY -> GitHub repository variable
+```
+
+The private key must never be committed.
+
+The generated sensor record includes:
+
+```text
+record_signature.public_key
+record_signature.public_key_hash
+record_signature.signature
+record_signature_verification.ok
+```
+
+---
+
+## Separate schema namespace
+
+The sensor record uses its own schema:
+
+```text
+.delta/schemas/delta-sensor-record-v1.3.0-dirty.schema.json
+```
+
+This schema is separate from DELTA-0 core objects:
+
+- Claim
+- Attestation
+- Ledger Entry
+- Signed Checkpoint
+
+This prevents accidental confusion between sensor-layer artifacts and formal DELTA-0 protocol objects.
 
 ---
 
@@ -37,20 +90,40 @@ The workflow runs:
 ```bash
 python tools/delta_sensor.py \
   --method .delta/methods/delta-cli-verify-all-v1.json \
+  --schema .delta/schemas/delta-sensor-record-v1.3.0-dirty.schema.json \
   --out-dir .delta/artifacts
 ```
 
 The sensor:
 
-1. resolves before/after Git references,
+1. resolves before/after commits,
 2. computes state hashes using Git tree listings,
 3. loads an executable measurement method definition,
 4. runs the measurement command,
 5. writes stdout/stderr evidence logs,
 6. hashes evidence logs,
-7. writes replay instructions,
-8. writes a `delta-record.json` artifact,
-9. verifies its own `record_body_hash` using DELTA SDK canonical JSON.
+7. writes isolated replay instructions,
+8. signs the canonical `record_body` with Ed25519,
+9. writes a `delta-record.json` artifact,
+10. verifies its own `record_body_hash` and Ed25519 signature.
+
+---
+
+## Replay isolation
+
+Replay instructions are designed to run in an isolated fresh clone.
+
+They must not mutate the verifier's active worktree.
+
+The generated `delta-replay.sh` uses:
+
+```bash
+WORKDIR="$(mktemp -d)"
+git clone "$REPO_URL" "$WORKDIR/repo"
+cd "$WORKDIR/repo"
+```
+
+Then it checks out the before/after commits and re-runs the declared measurement command.
 
 ---
 
@@ -74,23 +147,14 @@ The method definition itself is hash-committed in the record as:
 measurement_method.method_definition_hash
 ```
 
-This is the first step toward executable measurement methods.
-
----
-
-## Replay instructions
-
-The generated artifact includes:
+The record also includes:
 
 ```text
-.delta/artifacts/delta-replay.sh
+measurement_method.method_id
+measurement_method.method_version
+measurement_method.description
+measurement_method.replay_notes
 ```
-
-The replay script is also embedded into `delta-record.json` and hash-committed as private evidence.
-
-This is not yet a sandboxed replay verifier.
-
-It is a practical executable replay artifact for the next RFC iteration.
 
 ---
 
@@ -114,7 +178,6 @@ The record exposes hashes and paths, not external uploads to a DELTA server.
 
 This prototype does not implement:
 
-- private key signing,
 - public key registry,
 - anchoring,
 - mirror nodes,
@@ -126,28 +189,22 @@ Those layers remain future work.
 
 ---
 
-## Why this comes before RFC
-
-The sensor should expose real implementation pressure before the Delta Record RFC is frozen.
-
-Expected learning areas:
-
-- how to represent `measurement_method`,
-- how to define executable replay,
-- what runner/environment metadata matters,
-- how to structure private evidence commitments,
-- what should be signed later,
-- what should remain artifact-only.
-
----
-
 ## Run locally
 
 From the repository root:
 
 ```bash
 python -m pip install -e ./packages/python/delta_protocol
-python tools/delta_sensor.py --method .delta/methods/delta-cli-verify-all-v1.json --out-dir .delta/artifacts
+python tools/delta_sensor_keygen.py
+```
+
+Then set the printed values as environment variables and run:
+
+```bash
+python tools/delta_sensor.py \
+  --method .delta/methods/delta-cli-verify-all-v1.json \
+  --schema .delta/schemas/delta-sensor-record-v1.3.0-dirty.schema.json \
+  --out-dir .delta/artifacts
 ```
 
 Then inspect:

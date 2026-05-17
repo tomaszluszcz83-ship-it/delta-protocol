@@ -35,9 +35,13 @@ jobs:
           python -m pip install -e ./packages/python/delta_protocol
 
       - name: Run DELTA sensor
+        env:
+          DELTA_SENSOR_PRIVATE_KEY: ${{ secrets.DELTA_SENSOR_PRIVATE_KEY }}
+          DELTA_EXECUTOR_PUBLIC_KEY: ${{ vars.DELTA_EXECUTOR_PUBLIC_KEY }}
         run: |
           python tools/delta_sensor.py \
             --method .delta/methods/delta-cli-verify-all-v1.json \
+            --schema .delta/schemas/delta-sensor-record-v1.3.0-dirty.schema.json \
             --out-dir .delta/artifacts
 
       - name: Write DELTA sensor summary
