@@ -9,9 +9,13 @@ from .core import (
     canonical_json_bytes,
     load_json_file,
     sha256_prefixed,
+    verify_attestation_data,
     verify_attestation_pair,
+    verify_checkpoint_data,
     verify_checkpoint_pair,
+    verify_claim_data,
     verify_claim_pair,
+    verify_data,
     verify_pair,
     verify_signature,
 )
@@ -23,10 +27,14 @@ __all__ = [
     "load_json_file",
     "sha256_prefixed",
     "verify_signature",
+    "verify_data",
     "verify_pair",
+    "verify_claim_data",
     "verify_claim_pair",
+    "verify_attestation_data",
     "verify_attestation_pair",
+    "verify_checkpoint_data",
     "verify_checkpoint_pair",
 ]
 
-__version__ = "1.2.0"
+__version__ = "1.2.1"
