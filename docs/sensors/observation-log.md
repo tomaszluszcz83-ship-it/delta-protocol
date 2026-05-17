@@ -28,3 +28,24 @@ This file tracks observed signed sensor records collected during DELTA Stage C.
   - embedded executor_public_key presence
   - Ed25519 signature verification
 - Notes: This creates another low-risk documentation commit while recording lessons for the future Sensor Record RFC.
+
+## C-006
+
+- Purpose: add a compact Stage C observation table.
+- Expected result: GitHub Actions DELTA Sensor produces a new signed delta-record.json artifact.
+- Expected measurement_result.ok: true
+- Observation focus:
+  - record numbering
+  - commit transitions
+  - measurement result stability
+  - signature verification stability
+  - executor public key presence
+
+| Record | Type | Expected result |
+| --- | --- | --- |
+| C-001 | baseline | success |
+| C-002 | repeatability rerun | success |
+| C-003 | docs-only change | success |
+| C-004 | docs-only change | success |
+| C-005 | observation summary | success |
+| C-006 | observation table | success |
