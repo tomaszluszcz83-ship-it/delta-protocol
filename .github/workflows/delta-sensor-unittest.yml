@@ -1,0 +1,53 @@
+name: DELTA Sensor Unittest
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate-unittest-sensor-record:
+    name: Generate DELTA unittest sensor record
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository byte-exact
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install DELTA SDK dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ./packages/python/delta_protocol
+
+      - name: Run DELTA unittest sensor
+        env:
+          DELTA_SENSOR_PRIVATE_KEY: ${{ secrets.DELTA_SENSOR_PRIVATE_KEY }}
+          DELTA_EXECUTOR_PUBLIC_KEY: ${{ vars.DELTA_EXECUTOR_PUBLIC_KEY }}
+        run: |
+          python tools/delta_sensor.py             --method .delta/methods/python-unittest-v1.json             --schema .delta/schemas/delta-sensor-record-v1.3.0-dirty.schema.json             --out-dir .delta/artifacts-unittest
+
+      - name: Write DELTA unittest sensor summary
+        if: always()
+        run: |
+          if [ -f .delta/artifacts-unittest/delta-sensor-summary.md ]; then
+            cat .delta/artifacts-unittest/delta-sensor-summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload DELTA unittest sensor artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: delta-sensor-record-unittest
+          path: .delta/artifacts-unittest/
+          if-no-files-found: error

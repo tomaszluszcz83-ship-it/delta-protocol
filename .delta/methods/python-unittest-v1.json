@@ -1,0 +1,36 @@
+{
+  "type": "delta_measurement_method",
+  "method_id": "python-unittest-v1",
+  "method_version": "1.0.0",
+  "description": "Run the DELTA Python SDK unittest suite as an independent sensor measurement method.",
+  "executor": "subprocess",
+  "command": [
+    "python",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "packages/python/delta_protocol/tests",
+    "-v"
+  ],
+  "success_condition": {
+    "return_code": 0
+  },
+  "outputs": [
+    {
+      "name": "stdout",
+      "path": "delta-sensor-output.log",
+      "hash_algorithm": "sha256"
+    },
+    {
+      "name": "stderr",
+      "path": "delta-sensor-error.log",
+      "hash_algorithm": "sha256"
+    }
+  ],
+  "replay_notes": [
+    "Run from a fresh clone at the recorded commit_after.",
+    "Install the local Python SDK package before running the command.",
+    "This method is intentionally separate from delta-cli-verify-all-v1."
+  ]
+}
