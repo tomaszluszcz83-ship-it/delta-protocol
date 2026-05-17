@@ -11,7 +11,7 @@
   ],
   "success_condition": {
     "return_code": 0,
-    "stdout_contains": "DELTA CLI RESULT: OK"
+    "stdout_contains": "DELTA CLI RESULT: INTENTIONAL_C007_FAIL"
   },
   "outputs": [
     {
