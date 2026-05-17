@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "delta-protocol"
-version = "1.2.0"
+version = "1.2.1"
 description = "DELTA Protocol SDK Core: canonical JSON, SHA-256 commitments, and Ed25519 detached signature verification."
 readme = "README.md"
 requires-python = ">=3.9"

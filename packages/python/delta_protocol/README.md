@@ -7,6 +7,7 @@ It provides:
 - canonical JSON bytes
 - SHA-256 prefixed hashes
 - Ed25519 detached signature verification
+- in-memory verification helpers
 - Claim + Executor signature verification
 - Attestation + Verifier signature verification
 - Signed Checkpoint + Checkpoint Signer signature verification
@@ -25,7 +26,29 @@ python -m pip install -e ./packages/python/delta_protocol
 
 ---
 
-## Quick example
+## What is claim.json?
+
+`claim.json` is a DELTA Claim payload.
+
+It is not a complete Delta Record bundle.
+
+In DELTA-0, the complete proof chain is composed of separate payloads and detached signatures:
+
+```text
+claim.json
+executor_signature.json
+attestation.json
+verifier_signature.json
+ledger_entry.json
+checkpoint.json
+checkpoint_signature.json
+```
+
+A future Delta Record bundle format may wrap these artifacts into one higher-level object.
+
+---
+
+## Quick example: file pair
 
 ```python
 from delta_protocol import verify_claim_pair
@@ -40,12 +63,61 @@ print(result.reason)
 print(result.payload_hash)
 ```
 
-Expected:
+---
+
+## Quick example: in-memory data
+
+```python
+from delta_protocol import load_json_file, verify_claim_data
+
+claim = load_json_file("genesis/claim.json")
+signature = load_json_file("genesis/executor_signature.json")
+
+result = verify_claim_data(claim, signature)
+
+print(result.ok)
+print(result.reason)
+print(result.payload_hash)
+```
+
+This path is intended for backend systems, AI agents, API middleware, and sensors that already have DELTA objects in memory.
+
+---
+
+## SDK scope
+
+This SDK verifies existing DELTA objects.
+
+It does not generate private keys, create signatures, or write new proof records.
+
+Signing belongs to CLI Write Mode, application code with access to a private key, or future sensor integrations.
+
+---
+
+## Result object
+
+Most SDK functions return `VerificationResult`.
+
+Important fields:
 
 ```text
-True
-OK
-sha256:...
+ok            True if verification succeeded
+reason        "OK" or a human-readable failure reason
+payload_hash  recomputed sha256:<hex> hash of the canonical payload
+target_hash   hash declared by the detached signature envelope
+role          executor / verifier / checkpoint_signer
+target_type   delta_claim / delta_attestation / delta_signed_checkpoint
+public_key    public key declared by the signature envelope
+```
+
+---
+
+## Run tests
+
+From the repository root:
+
+```bash
+python -m unittest discover -s ./packages/python/delta_protocol/tests -v
 ```
 
 ---
@@ -54,32 +126,4 @@ sha256:...
 
 This SDK verifies cryptographic consistency.
 
-It can prove that:
-
-- a payload hash matches the canonical JSON bytes of the payload,
-- a detached signature envelope targets that payload hash,
-- an Ed25519 signature verifies over the canonical JSON bytes.
-
 It does not prove absolute truth about the physical world.
-
-It does not prove that:
-
-- private evidence was not fabricated before hashing,
-- a human statement is true,
-- an AI output is factually correct,
-- a compromised key was not misused before revocation.
-
----
-
-## Public API
-
-```python
-canonical_json_bytes(value) -> bytes
-sha256_prefixed(data: bytes) -> str
-load_json_file(path) -> object
-verify_signature(payload, signature_envelope, ...) -> VerificationResult
-verify_pair(payload_path, signature_path, ...) -> VerificationResult
-verify_claim_pair(claim_path, executor_signature_path) -> VerificationResult
-verify_attestation_pair(attestation_path, verifier_signature_path) -> VerificationResult
-verify_checkpoint_pair(checkpoint_path, checkpoint_signature_path) -> VerificationResult
-```

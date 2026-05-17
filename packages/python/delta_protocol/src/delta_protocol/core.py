@@ -9,6 +9,16 @@ This module implements the minimal DELTA-0 verification core:
 
 The SDK deliberately verifies cryptographic consistency only. It does not prove
 absolute truth about the physical world.
+
+Note:
+    DELTA-0 currently keeps the four core verification pairs separate:
+
+    - Claim + Executor Signature
+    - Attestation + Verifier Signature
+    - Signed Checkpoint + Checkpoint Signer Signature
+
+    Future Delta Record / sensor work should add a higher-level bundle verifier
+    that verifies all related signatures and cross-object hashes together.
 """
 
 from __future__ import annotations
@@ -37,7 +47,17 @@ class DELTAProtocolError(ValueError):
 
 @dataclass(frozen=True)
 class VerificationResult:
-    """Result of DELTA detached signature verification."""
+    """Result of DELTA detached signature verification.
+
+    Attributes:
+        ok: True when verification succeeded.
+        reason: "OK" on success, or a human-readable failure reason.
+        payload_hash: Recomputed sha256:<hex> hash of the canonical payload.
+        target_hash: Hash declared by the detached signature envelope.
+        role: Signature role, for example executor/verifier/checkpoint_signer.
+        target_type: Payload type targeted by the signature envelope.
+        public_key: Public key declared by the signature envelope.
+    """
 
     ok: bool
     reason: str
@@ -49,13 +69,6 @@ class VerificationResult:
 
 
 def _reject_float_values(value: Any, path: str = "$") -> None:
-    """Reject float values recursively.
-
-    DELTA-0 intentionally rejects floats in cryptographic structures to avoid
-    cross-language determinism issues involving NaN, Infinity, and numeric
-    rendering differences.
-    """
-
     if isinstance(value, float):
         raise DELTAProtocolError(f"Floats are not allowed in DELTA canonical JSON at {path}")
 
@@ -110,8 +123,6 @@ def canonical_json_bytes(value: Any) -> bytes:
 
 
 def sha256_prefixed(data: bytes) -> str:
-    """Return a DELTA-prefixed SHA-256 digest."""
-
     if not isinstance(data, (bytes, bytearray)):
         raise DELTAProtocolError("sha256_prefixed expects bytes")
     return HASH_PREFIX + hashlib.sha256(bytes(data)).hexdigest()
@@ -120,7 +131,9 @@ def sha256_prefixed(data: bytes) -> str:
 def load_json_file(path: str | Path) -> Any:
     """Load a UTF-8 JSON file and reject UTF-8 BOM.
 
-    DELTA JSON cryptographic structures are UTF-8 without BOM.
+    Loading a file parses JSON into a Python object. Hashing/signature
+    verification must always canonicalize that object with canonical_json_bytes()
+    before computing cryptographic values.
     """
 
     file_path = Path(path)
@@ -154,8 +167,6 @@ def _require_string(obj: dict[str, Any], field: str) -> str:
 
 
 def _decode_unpadded_base64url(value: str, field: str) -> bytes:
-    """Decode URL-safe Base64 with optional missing padding."""
-
     if not isinstance(value, str) or not value:
         raise DELTAProtocolError(f"Missing or invalid base64url field: {field}")
 
@@ -201,6 +212,7 @@ def verify_signature(
 
     The Ed25519 signature is checked over canonical_json_bytes(payload).
     The envelope target_hash must match sha256(canonical_json_bytes(payload)).
+    This function accepts Python objects already loaded in memory.
     """
 
     try:
@@ -254,16 +266,8 @@ def verify_signature(
                 f"target_hash mismatch: expected {payload_hash}, got {target_hash}"
             )
 
-        public_key_bytes = _decode_prefixed_base64url(
-            public_key_text,
-            PUBLIC_KEY_PREFIX,
-            "public_key",
-        )
-        signature_bytes = _decode_prefixed_base64url(
-            signature_text,
-            SIGNATURE_PREFIX,
-            "signature",
-        )
+        public_key_bytes = _decode_prefixed_base64url(public_key_text, PUBLIC_KEY_PREFIX, "public_key")
+        signature_bytes = _decode_prefixed_base64url(signature_text, SIGNATURE_PREFIX, "signature")
 
         if len(public_key_bytes) != 32:
             raise DELTAProtocolError("Ed25519 public key must be 32 bytes")
@@ -288,10 +292,26 @@ def verify_signature(
         )
 
     except DELTAProtocolError as exc:
-        return VerificationResult(
-            ok=False,
-            reason=str(exc),
-        )
+        return VerificationResult(ok=False, reason=str(exc))
+
+
+def verify_data(
+    payload: Any,
+    signature_envelope: Any,
+    *,
+    expected_payload_type: Optional[str] = None,
+    expected_signature_role: Optional[str] = None,
+    expected_target_type: Optional[str] = None,
+) -> VerificationResult:
+    """Verify an in-memory DELTA payload object plus signature envelope."""
+
+    return verify_signature(
+        payload,
+        signature_envelope,
+        expected_payload_type=expected_payload_type,
+        expected_signature_role=expected_signature_role,
+        expected_target_type=expected_target_type,
+    )
 
 
 def verify_pair(
@@ -312,7 +332,7 @@ def verify_pair(
     except OSError as exc:
         return VerificationResult(ok=False, reason=f"Could not read file: {exc}")
 
-    return verify_signature(
+    return verify_data(
         payload,
         signature,
         expected_payload_type=expected_payload_type,
@@ -321,10 +341,25 @@ def verify_pair(
     )
 
 
-def verify_claim_pair(
-    claim_path: str | Path,
-    executor_signature_path: str | Path,
-) -> VerificationResult:
+def verify_claim_data(claim: Any, executor_signature: Any) -> VerificationResult:
+    """Verify an in-memory Claim plus Executor detached signature envelope.
+
+    This function intentionally verifies only the Claim/Executor pair.
+    Verifier signatures belong to the Attestation layer and should be checked
+    with verify_attestation_data(). A future Delta Record bundle verifier will
+    verify all layers together.
+    """
+
+    return verify_data(
+        claim,
+        executor_signature,
+        expected_payload_type="delta_claim",
+        expected_signature_role="executor",
+        expected_target_type="delta_claim",
+    )
+
+
+def verify_claim_pair(claim_path: str | Path, executor_signature_path: str | Path) -> VerificationResult:
     """Verify claim.json + executor_signature.json."""
 
     return verify_pair(
@@ -336,10 +371,19 @@ def verify_claim_pair(
     )
 
 
-def verify_attestation_pair(
-    attestation_path: str | Path,
-    verifier_signature_path: str | Path,
-) -> VerificationResult:
+def verify_attestation_data(attestation: Any, verifier_signature: Any) -> VerificationResult:
+    """Verify an in-memory Attestation plus Verifier detached signature envelope."""
+
+    return verify_data(
+        attestation,
+        verifier_signature,
+        expected_payload_type="delta_attestation",
+        expected_signature_role="verifier",
+        expected_target_type="delta_attestation",
+    )
+
+
+def verify_attestation_pair(attestation_path: str | Path, verifier_signature_path: str | Path) -> VerificationResult:
     """Verify attestation.json + verifier_signature.json."""
 
     return verify_pair(
@@ -351,10 +395,19 @@ def verify_attestation_pair(
     )
 
 
-def verify_checkpoint_pair(
-    checkpoint_path: str | Path,
-    checkpoint_signature_path: str | Path,
-) -> VerificationResult:
+def verify_checkpoint_data(checkpoint: Any, checkpoint_signature: Any) -> VerificationResult:
+    """Verify an in-memory Signed Checkpoint plus Checkpoint Signer signature envelope."""
+
+    return verify_data(
+        checkpoint,
+        checkpoint_signature,
+        expected_payload_type="delta_signed_checkpoint",
+        expected_signature_role="checkpoint_signer",
+        expected_target_type="delta_signed_checkpoint",
+    )
+
+
+def verify_checkpoint_pair(checkpoint_path: str | Path, checkpoint_signature_path: str | Path) -> VerificationResult:
     """Verify checkpoint.json + checkpoint_signature.json."""
 
     return verify_pair(
