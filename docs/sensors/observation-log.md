@@ -72,3 +72,16 @@ This file tracks observed signed sensor records collected during DELTA Stage C.
   - C-008 showed recovery back to measurement_ok=true on main
   - The sensor signs the observed measurement result instead of hiding failures
 - Notes: This is important for the future Sensor Record RFC because failed measurements must remain verifiable records.
+
+## C-010
+
+- Purpose: final clean Stage C observation record for the first 10-record dataset.
+- Expected result: GitHub Actions DELTA Sensor produces a new signed delta-record.json artifact.
+- Expected measurement_result.ok: true
+- Observation focus:
+  - first 10-record dataset completion
+  - stable signature verification
+  - stable executor public key embedding
+  - stable measurement method hash commitment
+  - useful evidence hash commitments
+- Notes: This record closes the first Stage C dataset and prepares the ground for a Sensor Record RFC-00.
