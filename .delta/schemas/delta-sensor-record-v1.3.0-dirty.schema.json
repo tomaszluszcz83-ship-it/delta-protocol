@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://delta-protocol.local/schemas/delta-sensor-record-v1.3.0-dirty.schema.json",
+  "title": "DELTA Sensor Record Dirty Prototype v1.3.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "type",
+    "protocol_version",
+    "record_body_hash",
+    "record_body",
+    "record_signature",
+    "record_signature_verification"
+  ],
+  "properties": {
+    "type": {
+      "const": "delta_sensor_record_envelope"
+    },
+    "protocol_version": {
+      "const": "DELTA-0"
+    },
+    "record_body_hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "record_body": {
+      "type": "object",
+      "required": [
+        "type",
+        "protocol_version",
+        "schema",
+        "sensor_name",
+        "sensor_version",
+        "created_at",
+        "source",
+        "change",
+        "measurement_method",
+        "measurement_result",
+        "private_evidence_commitments",
+        "replay_instructions",
+        "verification_policy",
+        "security_boundary"
+      ],
+      "properties": {
+        "type": {
+          "const": "delta_sensor_record"
+        },
+        "protocol_version": {
+          "const": "DELTA-0"
+        },
+        "schema": {
+          "type": "object"
+        },
+        "sensor_name": {
+          "type": "string"
+        },
+        "sensor_version": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "source": {
+          "type": "object"
+        },
+        "change": {
+          "type": "object",
+          "required": [
+            "commit_before",
+            "commit_after",
+            "before_state_hash",
+            "after_state_hash"
+          ]
+        },
+        "measurement_method": {
+          "type": "object",
+          "required": [
+            "method_id",
+            "method_version",
+            "method_definition_hash",
+            "command"
+          ]
+        },
+        "measurement_result": {
+          "type": "object",
+          "required": [
+            "ok",
+            "return_code"
+          ]
+        },
+        "private_evidence_commitments": {
+          "type": "array"
+        },
+        "replay_instructions": {
+          "type": "object",
+          "required": [
+            "isolation",
+            "repository_url",
+            "hash",
+            "code"
+          ]
+        },
+        "verification_policy": {
+          "type": "object"
+        },
+        "security_boundary": {
+          "type": "object"
+        }
+      }
+    },
+    "record_signature": {
+      "type": "object",
+      "required": [
+        "type",
+        "alg",
+        "role",
+        "signed_payload",
+        "signed_hash",
+        "public_key",
+        "public_key_hash",
+        "signature"
+      ],
+      "properties": {
+        "type": {
+          "const": "delta_sensor_record_signature"
+        },
+        "alg": {
+          "const": "Ed25519"
+        },
+        "role": {
+          "const": "sensor_executor"
+        },
+        "signed_payload": {
+          "const": "record_body"
+        },
+        "signed_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "public_key": {
+          "type": "string",
+          "pattern": "^ed25519:[A-Za-z0-9_-]+$"
+        },
+        "public_key_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "signature": {
+          "type": "string",
+          "pattern": "^ed25519sig:[A-Za-z0-9_-]+$"
+        }
+      }
+    },
+    "record_signature_verification": {
+      "type": "object",
+      "required": [
+        "ok",
+        "reason"
+      ],
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "reason": {
+          "const": "OK"
+        }
+      }
+    }
+  }
+}

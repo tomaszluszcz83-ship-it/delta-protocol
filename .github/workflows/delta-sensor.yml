@@ -1,0 +1,65 @@
+name: DELTA Sensor
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - "sensors/**"
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  delta-sensor:
+    name: Generate DELTA sensor record
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository byte-exact
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install DELTA SDK dependencies
+        run: |
+          python -m pip install cryptography
+          python -m pip install -e ./packages/python/delta_protocol
+
+      - name: Run DELTA sensor
+        env:
+          DELTA_SENSOR_PRIVATE_KEY: ${{ secrets.DELTA_SENSOR_PRIVATE_KEY }}
+          DELTA_EXECUTOR_PUBLIC_KEY: ${{ vars.DELTA_EXECUTOR_PUBLIC_KEY }}
+        run: |
+          python tools/delta_sensor.py \
+            --method .delta/methods/delta-cli-verify-all-v1.json \
+            --schema .delta/schemas/delta-sensor-record-v1.3.0-dirty.schema.json \
+            --out-dir .delta/artifacts
+
+      - name: Write DELTA sensor summary
+        if: always()
+        run: |
+          if [ -f .delta/artifacts/delta-sensor-summary.md ]; then
+            cat .delta/artifacts/delta-sensor-summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload DELTA sensor artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: delta-sensor-record
+          path: |
+            .delta/artifacts/delta-record.json
+            .delta/artifacts/delta-sensor-output.log
+            .delta/artifacts/delta-sensor-error.log
+            .delta/artifacts/delta-replay.sh
+            .delta/artifacts/delta-sensor-summary.md
+          if-no-files-found: error
