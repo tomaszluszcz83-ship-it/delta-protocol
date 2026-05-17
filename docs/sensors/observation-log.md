@@ -15,3 +15,16 @@ This file tracks observed signed sensor records collected during DELTA Stage C.
 - Expected result: GitHub Actions DELTA Sensor produces a new signed delta-record.json artifact.
 - Expected measurement_result.ok: true
 - Notes: This record checks whether another small docs-only commit creates a new signed sensor record with a new commit_after and record_body_hash.
+
+## C-005
+
+- Purpose: add first observation summary after collecting C-001 through C-004.
+- Expected result: GitHub Actions DELTA Sensor produces a new signed delta-record.json artifact.
+- Expected measurement_result.ok: true
+- Observation focus:
+  - baseline record generation
+  - repeatability on the same commit/state
+  - documentation-only commit detection
+  - embedded executor_public_key presence
+  - Ed25519 signature verification
+- Notes: This creates another low-risk documentation commit while recording lessons for the future Sensor Record RFC.
