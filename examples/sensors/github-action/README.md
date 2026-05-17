@@ -53,6 +53,9 @@ The sensor record includes:
 
 ```text
 record_signature.public_key
+record_signature.public_key_hash
+record_signature.executor_public_key
+record_signature.executor_public_key_hash
 record_signature.signature
 record_signature_verification.ok
 ```

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://delta-protocol.local/schemas/delta-sensor-record-v1.3.0-dirty.schema.json",
-  "title": "DELTA Sensor Record Dirty Prototype v1.3.0",
+  "title": "DELTA Sensor Record Dirty Prototype v1.3.1",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -118,6 +118,8 @@
         "signed_hash",
         "public_key",
         "public_key_hash",
+        "executor_public_key",
+        "executor_public_key_hash",
         "signature"
       ],
       "properties": {
@@ -142,6 +144,14 @@
           "pattern": "^ed25519:[A-Za-z0-9_-]+$"
         },
         "public_key_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "executor_public_key": {
+          "type": "string",
+          "pattern": "^ed25519:[A-Za-z0-9_-]+$"
+        },
+        "executor_public_key_hash": {
           "type": "string",
           "pattern": "^sha256:[0-9a-f]{64}$"
         },

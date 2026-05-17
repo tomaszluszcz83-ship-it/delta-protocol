@@ -32,7 +32,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from delta_protocol import canonical_json_bytes, load_json_file, sha256_prefixed
 
 
-SENSOR_VERSION = "v1.3.0-dirty"
+SENSOR_VERSION = "v1.3.1-dirty"
 RECORD_TYPE = "delta_sensor_record"
 ENVELOPE_TYPE = "delta_sensor_record_envelope"
 SIGNATURE_TYPE = "delta_sensor_record_signature"
@@ -243,6 +243,8 @@ def sign_record_body(record_body: dict[str, Any]) -> dict[str, Any]:
     public_key_bytes = public_key.public_bytes(Encoding.Raw, PublicFormat.Raw)
 
     derived_public_key = PUBLIC_KEY_PREFIX + b64url_no_padding(public_key_bytes)
+    derived_public_key_hash = hash_text(derived_public_key)
+
     expected_public_key = (
         os.environ.get("DELTA_EXECUTOR_PUBLIC_KEY")
         or os.environ.get("DELTA_SENSOR_PUBLIC_KEY")
@@ -265,7 +267,9 @@ def sign_record_body(record_body: dict[str, Any]) -> dict[str, Any]:
         "signed_payload": "record_body",
         "signed_hash": record_body_hash,
         "public_key": derived_public_key,
-        "public_key_hash": hash_text(derived_public_key),
+        "public_key_hash": derived_public_key_hash,
+        "executor_public_key": derived_public_key,
+        "executor_public_key_hash": derived_public_key_hash,
         "signature": SIGNATURE_PREFIX + b64url_no_padding(signature_bytes),
     }
 
@@ -282,11 +286,21 @@ def verify_record_signature(record_body: dict[str, Any], signature: dict[str, An
             return False, "signature.role mismatch"
 
         public_key_text = signature.get("public_key")
+        public_key_hash = signature.get("public_key_hash")
+        executor_public_key = signature.get("executor_public_key")
+        executor_public_key_hash = signature.get("executor_public_key_hash")
         signature_text = signature.get("signature")
         signed_hash = signature.get("signed_hash")
 
+        if executor_public_key != public_key_text:
+            return False, "executor_public_key must equal public_key"
+        if executor_public_key_hash != public_key_hash:
+            return False, "executor_public_key_hash must equal public_key_hash"
+
         if not isinstance(public_key_text, str) or not public_key_text.startswith(PUBLIC_KEY_PREFIX):
             return False, "signature.public_key invalid"
+        if public_key_hash != hash_text(public_key_text):
+            return False, "signature.public_key_hash mismatch"
         if not isinstance(signature_text, str) or not signature_text.startswith(SIGNATURE_PREFIX):
             return False, "signature.signature invalid"
 
@@ -490,6 +504,7 @@ def main() -> int:
                 "record_body_hash_self_check",
                 "record_signature_present",
                 "record_signature_verification_ok",
+                "executor_public_key_present",
             ],
         },
         "security_boundary": {
@@ -546,8 +561,10 @@ def main() -> int:
         f"- method_version: `{method_definition.get('method_version')}`",
         f"- method_definition_hash: `{method_definition_hash}`",
         f"- schema_hash: `{schema_hash}`",
-        f"- executor_public_key: `{record_signature.get('public_key')}`",
-        f"- executor_public_key_hash: `{record_signature.get('public_key_hash')}`",
+        f"- public_key: `{record_signature.get('public_key')}`",
+        f"- public_key_hash: `{record_signature.get('public_key_hash')}`",
+        f"- executor_public_key: `{record_signature.get('executor_public_key')}`",
+        f"- executor_public_key_hash: `{record_signature.get('executor_public_key_hash')}`",
         f"- stdout_hash: `{hash_file(stdout_path)}`",
         f"- stderr_hash: `{hash_file(stderr_path)}`",
         "",
@@ -575,6 +592,7 @@ def main() -> int:
     print(f"DELTA_SENSOR_SELF_CHECK_OK={self_check_ok}")
     print("DELTA_SENSOR_SIGNATURE_PRESENT=True")
     print(f"DELTA_SENSOR_SIGNATURE_VERIFICATION_OK={signature_verification_ok}")
+    print("DELTA_SENSOR_EXECUTOR_PUBLIC_KEY_PRESENT=True")
 
     if not self_check_ok:
         return 2
