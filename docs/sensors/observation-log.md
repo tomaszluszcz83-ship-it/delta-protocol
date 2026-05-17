@@ -61,3 +61,14 @@ This file tracks observed signed sensor records collected during DELTA Stage C.
   - signature verification remains stable
   - executor_public_key remains embedded
 - Notes: C-008 confirms that the negative C-007 case did not affect the normal main branch sensor flow.
+
+## C-009
+
+- Purpose: document the success/failure observation from C-007 and C-008.
+- Expected result: GitHub Actions DELTA Sensor produces a new signed delta-record.json artifact.
+- Expected measurement_result.ok: true
+- Observation focus:
+  - C-007 showed measurement_ok=false with signature_verification_ok=true
+  - C-008 showed recovery back to measurement_ok=true on main
+  - The sensor signs the observed measurement result instead of hiding failures
+- Notes: This is important for the future Sensor Record RFC because failed measurements must remain verifiable records.
