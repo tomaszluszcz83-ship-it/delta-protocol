@@ -1,0 +1,27 @@
+{
+  "method_id": "crypto-wallet-proof-v1",
+  "method_version": "1.0.0",
+  "description": "DELTA Proof of Crypto Wallet / Address Control MVP using ed25519_address_control_v1 demo adapter. Production BTC/ETH/KAS adapters are roadmap items.",
+  "executor": "python",
+  "command": [
+    "python",
+    "tools/delta_wallet.py",
+    "verify-proof",
+    "--proof",
+    ".delta/wallet-tests/W-001/wallet-proof-record.json",
+    "--challenge",
+    ".delta/wallet-tests/W-001/wallet-challenge-record.json"
+  ],
+  "success_condition": {
+    "return_code": 0,
+    "stdout_contains": "DELTA_WALLET_VERIFY_OK=True"
+  },
+  "security_boundary": {
+    "demo_adapter_only": true,
+    "does_not_use_seed_phrases": true,
+    "does_not_prove_legal_ownership": true,
+    "does_not_prove_wallet_balance": true,
+    "does_not_claim_mica_compliance": true
+  },
+  "replay_notes": "For record-bound proofs, pass --record to verify-proof during direct wallet verification. This method file is a template and does not include local private keys or generated proof artifacts."
+}
