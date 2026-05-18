@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """DELTA Proof of Crypto Wallet / Address Control tool.
 
-v2.3.1 adds an optional Ethereum EIP-191 / personal_sign adapter while
-preserving the v2.3.0 Ed25519 demo adapter.
+v2.3.2 adds an optional Ethereum EIP-712 typed-data adapter while
+preserving the v2.3.1 Ethereum EIP-191 adapter and v2.3.0 Ed25519 demo adapter.
 
 Security boundary:
 - DELTA never needs seed phrases.
@@ -32,15 +32,16 @@ from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat
 
 try:  # Optional Ethereum support.
     from eth_account import Account  # type: ignore
-    from eth_account.messages import encode_defunct  # type: ignore
+    from eth_account.messages import encode_defunct, encode_typed_data  # type: ignore
 
     HAS_ETH_ACCOUNT = True
 except Exception:  # pragma: no cover - optional dependency by design.
     Account = None  # type: ignore
     encode_defunct = None  # type: ignore
+    encode_typed_data = None  # type: ignore
     HAS_ETH_ACCOUNT = False
 
-TOOL_VERSION = "v2.3.1-ethereum-eip191"
+TOOL_VERSION = "v2.3.2-ethereum-eip712"
 PROTOCOL_VERSION = "DELTA-0"
 
 CHALLENGE_ENVELOPE_TYPE = "delta_wallet_challenge_envelope"
@@ -50,7 +51,8 @@ PROOF_BODY_TYPE = "delta_wallet_proof"
 
 STANDARD_ED25519 = "ed25519_address_control_v1"
 STANDARD_ETH_EIP191 = "ethereum_eip191_personal_sign_v1"
-SUPPORTED_STANDARDS = {STANDARD_ED25519, STANDARD_ETH_EIP191}
+STANDARD_ETH_EIP712 = "ethereum_eip712_typed_data_v1"
+SUPPORTED_STANDARDS = {STANDARD_ED25519, STANDARD_ETH_EIP191, STANDARD_ETH_EIP712}
 
 CHAIN_ED25519_DEMO = "ed25519-demo"
 CHAIN_ETHEREUM = "ethereum"
@@ -128,8 +130,8 @@ def require_standard_chain(standard: str, chain: str) -> None:
         raise SystemExit(f"unsupported wallet standard: {standard}")
     if standard == STANDARD_ED25519 and chain != CHAIN_ED25519_DEMO:
         raise SystemExit(f"{STANDARD_ED25519} requires chain {CHAIN_ED25519_DEMO}")
-    if standard == STANDARD_ETH_EIP191 and chain != CHAIN_ETHEREUM:
-        raise SystemExit(f"{STANDARD_ETH_EIP191} requires chain {CHAIN_ETHEREUM}")
+    if standard in (STANDARD_ETH_EIP191, STANDARD_ETH_EIP712) and chain != CHAIN_ETHEREUM:
+        raise SystemExit(f"{standard} requires chain {CHAIN_ETHEREUM}")
 
 
 def infer_standard(chain: str, explicit: str | None) -> str:
@@ -160,7 +162,7 @@ def validate_address_shape(standard: str, address: str) -> bool:
             return len(raw) == 32
         except Exception:
             return False
-    if standard == STANDARD_ETH_EIP191:
+    if standard in (STANDARD_ETH_EIP191, STANDARD_ETH_EIP712):
         return isinstance(address, str) and ETH_ADDRESS_RE.match(address) is not None
     return False
 
@@ -182,6 +184,73 @@ def build_wallet_message(challenge_body: dict[str, Any]) -> str:
         f"nonce={challenge_body.get('nonce')}",
     ]
     return "\n".join(lines)
+
+
+
+def build_eip712_typed_data(challenge_body: dict[str, Any]) -> dict[str, Any]:
+    """Build deterministic EIP-712 typed data from the current challenge body.
+
+    Important: this function deliberately rebuilds typed data from the challenge
+    fields instead of trusting any caller-supplied typed-data blob. That means a
+    tampered record_hash, challenge_id, address, nonce, or purpose changes the
+    EIP-712 message and invalidates the signature.
+    """
+    target = challenge_body.get("target") if isinstance(challenge_body.get("target"), dict) else {}
+    record_hash = target.get("record_hash") or "none"
+    eip712 = challenge_body.get("eip712") if isinstance(challenge_body.get("eip712"), dict) else {}
+    try:
+        chain_id = int(eip712.get("chain_id", 1))
+    except Exception:
+        chain_id = 1
+
+    domain_name = str(eip712.get("domain_name") or "DELTA Protocol")
+    domain_version = str(eip712.get("domain_version") or "2.3.2")
+
+    return {
+        "types": {
+            "EIP712Domain": [
+                {"name": "name", "type": "string"},
+                {"name": "version", "type": "string"},
+                {"name": "chainId", "type": "uint256"},
+            ],
+            "DELTAWalletChallenge": [
+                {"name": "challengeId", "type": "string"},
+                {"name": "protocol", "type": "string"},
+                {"name": "chain", "type": "string"},
+                {"name": "standard", "type": "string"},
+                {"name": "address", "type": "address"},
+                {"name": "domain", "type": "string"},
+                {"name": "purpose", "type": "string"},
+                {"name": "recordHash", "type": "string"},
+                {"name": "createdAt", "type": "string"},
+                {"name": "nonce", "type": "string"},
+            ],
+        },
+        "primaryType": "DELTAWalletChallenge",
+        "domain": {
+            "name": domain_name,
+            "version": domain_version,
+            "chainId": chain_id,
+        },
+        "message": {
+            "challengeId": str(challenge_body.get("challenge_id") or ""),
+            "protocol": str(challenge_body.get("protocol_version") or ""),
+            "chain": str(challenge_body.get("chain") or ""),
+            "standard": str(challenge_body.get("standard") or ""),
+            "address": str(challenge_body.get("address") or ""),
+            "domain": str(challenge_body.get("domain") or ""),
+            "purpose": str(challenge_body.get("purpose") or ""),
+            "recordHash": str(record_hash),
+            "createdAt": str(challenge_body.get("created_at") or ""),
+            "nonce": str(challenge_body.get("nonce") or ""),
+        },
+    }
+
+
+def encode_eip712_message(typed_data: dict[str, Any]) -> Any:
+    if not HAS_ETH_ACCOUNT or encode_typed_data is None:
+        raise RuntimeError("eth_account_missing_install_with_python_m_pip_install_eth_account")
+    return encode_typed_data(full_message=typed_data)  # type: ignore[misc]
 
 
 def load_ed25519_private_key(path: Path) -> Ed25519PrivateKey:
@@ -248,6 +317,28 @@ def verify_ethereum_personal_sign(message: str, signature_hex: str, address: str
         return ok, "ethereum_eip191_signature_valid" if ok else "ethereum_eip191_signature_invalid", recovered
     except Exception as exc:
         return False, f"ethereum_eip191_signature_error:{type(exc).__name__}", None
+
+
+
+def verify_ethereum_eip712_typed_data(typed_data: dict[str, Any], signature_hex: str, address: str) -> tuple[bool, str, str | None]:
+    if not HAS_ETH_ACCOUNT:
+        return False, "eth_account_missing_install_with_python_m_pip_install_eth_account", None
+    if not isinstance(typed_data, dict) or not typed_data:
+        return False, "ethereum_eip712_typed_data_missing", None
+    if not isinstance(signature_hex, str):
+        return False, "ethereum_signature_missing", None
+    signature = normalize_eth_signature(signature_hex)
+    if ETH_SIGNATURE_RE.match(signature) is None:
+        return False, "ethereum_eip712_signature_shape_invalid", None
+    if not isinstance(address, str) or ETH_ADDRESS_RE.match(address) is None:
+        return False, "ethereum_address_shape_invalid", None
+    try:
+        encoded = encode_eip712_message(typed_data)
+        recovered = Account.recover_message(encoded, signature=signature)  # type: ignore[union-attr]
+        ok = recovered.lower() == address.lower()
+        return ok, "ethereum_eip712_signature_valid" if ok else "ethereum_eip712_signature_invalid", recovered
+    except Exception as exc:
+        return False, f"ethereum_eip712_signature_error:{type(exc).__name__}", None
 
 
 def read_eth_private_key(path: Path) -> str:
@@ -371,8 +462,20 @@ def command_create_challenge(args: argparse.Namespace) -> int:
             "proves_address_control_for_signed_challenge": True,
         },
     }
+    if standard == STANDARD_ETH_EIP712:
+        challenge_body["eip712"] = {
+            "domain_name": "DELTA Protocol",
+            "domain_version": "2.3.2",
+            "chain_id": int(args.eip712_chain_id),
+            "primary_type": "DELTAWalletChallenge",
+            "typed_data_source": "derived_from_challenge_body",
+        }
     challenge_body["message"] = build_wallet_message(challenge_body)
     challenge_body["message_hash"] = sha256_prefixed(challenge_body["message"].encode("utf-8"))
+    if standard == STANDARD_ETH_EIP712:
+        eip712_typed_data = build_eip712_typed_data(challenge_body)
+        challenge_body["eip712_typed_data"] = eip712_typed_data
+        challenge_body["eip712_typed_data_hash"] = canonical_sha256(eip712_typed_data)
 
     challenge_body_hash = canonical_sha256(challenge_body)
     envelope = {
@@ -394,6 +497,8 @@ def command_create_challenge(args: argparse.Namespace) -> int:
     print(f"DELTA_WALLET_RECORD_BINDING_DECLARED={bool(record_hash)}")
     if record_hash:
         print(f"DELTA_WALLET_RECORD_HASH={record_hash}")
+    if standard == STANDARD_ETH_EIP712:
+        print(f"DELTA_WALLET_EIP712_TYPED_DATA_HASH={challenge_body.get('eip712_typed_data_hash')}")
     return 0
 
 
@@ -448,10 +553,7 @@ def command_create_proof(args: argparse.Namespace) -> int:
             "public_key_hash": sha256_prefixed(public_key_text.encode("utf-8")),
             "signature": SIGNATURE_PREFIX + b64url_no_padding(signature_raw),
         }
-    elif standard == STANDARD_ETH_EIP191:
-        message = challenge_body.get("message")
-        if not isinstance(message, str) or not message:
-            raise SystemExit("Ethereum challenge must contain challenge_body.message")
+    elif standard in (STANDARD_ETH_EIP191, STANDARD_ETH_EIP712):
         if args.signature:
             signature_hex = normalize_eth_signature(args.signature)
             source = "external_signature"
@@ -462,23 +564,41 @@ def command_create_proof(args: argparse.Namespace) -> int:
             acct = Account.from_key(private_hex)  # type: ignore[union-attr]
             if acct.address.lower() != str(address).lower():
                 raise SystemExit("Ethereum private key does not match challenge address")
-            signed = acct.sign_message(encode_defunct(text=message))  # type: ignore[misc]
+            if standard == STANDARD_ETH_EIP191:
+                message = challenge_body.get("message")
+                if not isinstance(message, str) or not message:
+                    raise SystemExit("Ethereum EIP-191 challenge must contain challenge_body.message")
+                signed = acct.sign_message(encode_defunct(text=message))  # type: ignore[misc]
+            else:
+                typed_data = build_eip712_typed_data(challenge_body)
+                signed = acct.sign_message(encode_eip712_message(typed_data))
             signature_hex = signed.signature.hex()
             if not signature_hex.startswith("0x"):
                 signature_hex = "0x" + signature_hex
             source = "eth_demo_private_key"
         else:
-            raise SystemExit("Ethereum EIP-191 proof creation requires --signature or --eth-private-key")
+            raise SystemExit("Ethereum proof creation requires --signature or --eth-private-key")
 
-        ok, reason, recovered_address = verify_ethereum_personal_sign(message, signature_hex, str(address))
+        if standard == STANDARD_ETH_EIP191:
+            message = challenge_body.get("message")
+            if not isinstance(message, str) or not message:
+                raise SystemExit("Ethereum EIP-191 challenge must contain challenge_body.message")
+            ok, reason, recovered_address = verify_ethereum_personal_sign(message, signature_hex, str(address))
+            signed_payload = "challenge_message"
+            signed_hash = sha256_prefixed(message.encode("utf-8"))
+        else:
+            typed_data = build_eip712_typed_data(challenge_body)
+            ok, reason, recovered_address = verify_ethereum_eip712_typed_data(typed_data, signature_hex, str(address))
+            signed_payload = "eip712_typed_data"
+            signed_hash = canonical_sha256(typed_data)
         if not ok:
             raise SystemExit(f"Ethereum signature does not verify for challenge address: {reason}")
         signature_obj = {
             "type": "delta_wallet_signature",
             "alg": "Ethereum-ECDSA",
-            "standard": STANDARD_ETH_EIP191,
-            "signed_payload": "challenge_message",
-            "signed_hash": sha256_prefixed(message.encode("utf-8")),
+            "standard": standard,
+            "signed_payload": signed_payload,
+            "signed_hash": signed_hash,
             "signature": normalize_eth_signature(signature_hex),
             "recovered_address": recovered_address,
             "source": source,
@@ -574,7 +694,7 @@ def command_verify_proof(args: argparse.Namespace) -> int:
     checks["standard_ok"] = standard in SUPPORTED_STANDARDS
     reasons["standard_ok"] = "standard_supported" if checks["standard_ok"] else "standard_unsupported"
     checks["chain_ok"] = (standard == STANDARD_ED25519 and chain == CHAIN_ED25519_DEMO) or (
-        standard == STANDARD_ETH_EIP191 and chain == CHAIN_ETHEREUM
+        standard in (STANDARD_ETH_EIP191, STANDARD_ETH_EIP712) and chain == CHAIN_ETHEREUM
     )
     reasons["chain_ok"] = "chain_matches_standard" if checks["chain_ok"] else "chain_standard_mismatch"
     checks["address_shape_ok"] = isinstance(standard, str) and isinstance(address, str) and validate_address_shape(standard, address)
@@ -589,10 +709,10 @@ def command_verify_proof(args: argparse.Namespace) -> int:
         reasons["public_key_hash_ok"] = "public_key_hash_matches" if checks["public_key_hash_ok"] else "public_key_hash_mismatch"
         checks["address_binding_ok"] = public_key == address
         reasons["address_binding_ok"] = "public_key_equals_address" if checks["address_binding_ok"] else "public_key_address_mismatch"
-    elif standard == STANDARD_ETH_EIP191:
+    elif standard in (STANDARD_ETH_EIP191, STANDARD_ETH_EIP712):
         recovered = signature.get("recovered_address")
         checks["public_key_hash_ok"] = True
-        reasons["public_key_hash_ok"] = "not_applicable_for_ethereum_eip191"
+        reasons["public_key_hash_ok"] = "not_applicable_for_ethereum_address_recovery"
         checks["address_binding_ok"] = isinstance(recovered, str) and recovered.lower() == str(address).lower()
         reasons["address_binding_ok"] = "recovered_address_equals_address" if checks["address_binding_ok"] else "recovered_address_mismatch"
     else:
@@ -633,7 +753,7 @@ def command_verify_proof(args: argparse.Namespace) -> int:
             challenge_hash_for_signature = None
 
     checks["challenge_not_expired_ok"] = True
-    reasons["challenge_not_expired_ok"] = "expiration_not_enforced_v2_3_1"
+    reasons["challenge_not_expired_ok"] = "expiration_not_enforced_v2_3_2"
 
     supplied_record_hash = None
     if args.record:
@@ -684,6 +804,15 @@ def command_verify_proof(args: argparse.Namespace) -> int:
         if ok:
             checks["address_binding_ok"] = eth_recovered is not None and eth_recovered.lower() == str(address).lower()
             reasons["address_binding_ok"] = "recovered_address_equals_address"
+    elif standard == STANDARD_ETH_EIP712:
+        typed_data = build_eip712_typed_data(challenge_for_signature) if isinstance(challenge_for_signature, dict) else {}
+        sig_text = signature.get("signature")
+        ok, reason, eth_recovered = verify_ethereum_eip712_typed_data(typed_data, str(sig_text), str(address))
+        checks["signature_ok"] = ok
+        reasons["signature_ok"] = reason
+        if ok:
+            checks["address_binding_ok"] = eth_recovered is not None and eth_recovered.lower() == str(address).lower()
+            reasons["address_binding_ok"] = "recovered_address_equals_address"
     else:
         checks["signature_ok"] = False
         reasons["signature_ok"] = "unsupported_standard"
@@ -721,6 +850,8 @@ def command_verify_proof(args: argparse.Namespace) -> int:
     print(f"DELTA_WALLET_STANDARD={standard}")
     if proof_record_hash:
         print(f"DELTA_WALLET_RECORD_HASH={proof_record_hash}")
+    if standard == STANDARD_ETH_EIP712 and isinstance(challenge_for_signature, dict):
+        print(f"DELTA_WALLET_EIP712_TYPED_DATA_HASH={canonical_sha256(build_eip712_typed_data(challenge_for_signature))}")
     if eth_recovered:
         print(f"DELTA_WALLET_ETH_RECOVERED_ADDRESS={eth_recovered}")
     for key in all_required:
@@ -755,14 +886,15 @@ def build_parser() -> argparse.ArgumentParser:
     challenge.add_argument("--domain", default="local-delta", help="Domain/context label for the challenge.")
     challenge.add_argument("--purpose", default="DELTA wallet address control", help="Human-readable challenge purpose.")
     challenge.add_argument("--challenge-id", default=None, help="Optional challenge id.")
-    challenge.add_argument("--expires-at", default=None, help="Optional UTC ISO-8601 expiration timestamp. Report-only in v2.3.1.")
+    challenge.add_argument("--expires-at", default=None, help="Optional UTC ISO-8601 expiration timestamp. Report-only in v2.3.2.")
+    challenge.add_argument("--eip712-chain-id", default="1", help="EIP-712 domain chainId for ethereum_eip712_typed_data_v1. Default: 1.")
     challenge.set_defaults(func=command_create_challenge)
 
     proof = subparsers.add_parser("create-proof", help="Create a DELTA wallet proof for a challenge.")
     proof.add_argument("--challenge", required=True, help="Path to wallet challenge JSON.")
     proof.add_argument("--private-key", default=None, help="Path to local Ed25519 demo private key. Do not commit.")
     proof.add_argument("--eth-private-key", default=None, help="Path to local Ethereum demo key. Do not commit.")
-    proof.add_argument("--signature", default=None, help="External Ethereum EIP-191 signature hex, e.g. from MetaMask personal_sign.")
+    proof.add_argument("--signature", default=None, help="External Ethereum signature hex, e.g. EIP-191 personal_sign or EIP-712 typed data.")
     proof.add_argument("--record", default=None, help="Optional delta-record.json path. Must match signed challenge target.")
     proof.add_argument("--out", required=True, help="Path for wallet proof JSON.")
     proof.add_argument("--holder", default="local-wallet-holder", help="Non-authoritative holder label for test/demo proofs.")
