@@ -1,0 +1,18 @@
+{
+  "created_at": "2026-05-18T08:32:06Z",
+  "keys": [
+    {
+      "active_from": "2026-05-18T08:32:06Z",
+      "id": "intent-key-local-v1",
+      "owner": "local-approver",
+      "public_key": "ed25519:7TVhmIg+KdLTEWczxvwiO0o3uU8nXxrRjNlbL3m04Xg=",
+      "public_key_hash": "sha256:a0134bf43cbe12b611a2e05101ba4ed91b0a48d6f6693522790d413d91ae63c7",
+      "revoked_at": null,
+      "role": "tech_lead"
+    }
+  ],
+  "protocol": "DELTA-0",
+  "type": "delta_intent_key_registry",
+  "updated_at": "2026-05-18T08:32:06Z",
+  "version": "1.0.0"
+}

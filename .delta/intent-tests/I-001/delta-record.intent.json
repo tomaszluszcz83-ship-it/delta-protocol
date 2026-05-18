@@ -1,0 +1,24 @@
+{
+  "approval": {
+    "approver": "local-approver",
+    "reason": "Approve Proof of Intent MVP test",
+    "role": "tech_lead",
+    "ticket_id": "DELTA-POI-001"
+  },
+  "created_at": "2026-05-18T08:41:47Z",
+  "policy": {
+    "requires_mfa": true,
+    "time_window": null,
+    "valid_from": null,
+    "valid_until": null
+  },
+  "protocol": "DELTA-0",
+  "target": {
+    "commit_after": null,
+    "record_hash": "sha256:a2f8b06c17ac026e4737cf9779475774d3b52b1c1e12727bfbf14e0b03283950",
+    "record_type": "delta_sensor_record",
+    "sensor_method": "unknown"
+  },
+  "type": "delta_intent_attestation",
+  "version": "1.0.0"
+}
