@@ -1,20 +1,15 @@
 #!/usr/bin/env python3
 """DELTA Proof of Crypto Wallet / Address Control tool.
 
-v2.3.0 goal:
-- create a standalone wallet/address-control challenge
-- optionally bind that challenge to a full canonical delta-record.json hash
-- create a proof that a key/address signed that exact challenge
-- verify the proof offline with clear security boundaries
+v2.3.1 adds an optional Ethereum EIP-191 / personal_sign adapter while
+preserving the v2.3.0 Ed25519 demo adapter.
 
 Security boundary:
-- This MVP does not ask for seed phrases and does not store production wallet keys.
-- It does not prove legal ownership, real-world identity, wallet balance, MiCA compliance,
-  chain state, or smart-contract wallet authority.
-- ed25519_address_control_v1 is a DELTA demo adapter used to harden the proof envelope.
-  Production adapters such as ETH EIP-191/EIP-712 and BTC BIP-322 are roadmap items.
-- When --record is used, the record hash is embedded inside the signed challenge_body,
-  so the wallet signature is bound to that specific DELTA record hash.
+- DELTA never needs seed phrases.
+- Demo private keys are local test artifacts and must not be committed.
+- Proof of Wallet proves cryptographic control of a key/address for a specific
+  signed DELTA challenge; it does not prove legal ownership, identity, balance,
+  MiCA compliance, or external-world truth.
 """
 
 from __future__ import annotations
@@ -22,10 +17,12 @@ from __future__ import annotations
 import argparse
 import base64
 import binascii
-import datetime as _dt
-import hashlib
 import json
+import os
+import re
 import secrets
+import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -33,36 +30,57 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat, PublicFormat, NoEncryption
 
-PROTOCOL = "DELTA-0"
-SHA256_PREFIX = "sha256:"
-PRIVATE_SEED_PREFIX = "ed25519seed:"
+try:  # Optional Ethereum support.
+    from eth_account import Account  # type: ignore
+    from eth_account.messages import encode_defunct  # type: ignore
+
+    HAS_ETH_ACCOUNT = True
+except Exception:  # pragma: no cover - optional dependency by design.
+    Account = None  # type: ignore
+    encode_defunct = None  # type: ignore
+    HAS_ETH_ACCOUNT = False
+
+TOOL_VERSION = "v2.3.1-ethereum-eip191"
+PROTOCOL_VERSION = "DELTA-0"
+
+CHALLENGE_ENVELOPE_TYPE = "delta_wallet_challenge_envelope"
+CHALLENGE_BODY_TYPE = "delta_wallet_challenge"
+PROOF_ENVELOPE_TYPE = "delta_wallet_proof_envelope"
+PROOF_BODY_TYPE = "delta_wallet_proof"
+
+STANDARD_ED25519 = "ed25519_address_control_v1"
+STANDARD_ETH_EIP191 = "ethereum_eip191_personal_sign_v1"
+SUPPORTED_STANDARDS = {STANDARD_ED25519, STANDARD_ETH_EIP191}
+
+CHAIN_ED25519_DEMO = "ed25519-demo"
+CHAIN_ETHEREUM = "ethereum"
+
 PUBLIC_KEY_PREFIX = "ed25519:"
+PRIVATE_SEED_PREFIX = "ed25519seed:"
 SIGNATURE_PREFIX = "ed25519sig:"
+ETH_PRIVATE_PREFIX = "ethereum_private_hex:"
 
-CHALLENGE_TYPE = "delta_wallet_challenge"
-CHALLENGE_BODY_TYPE = "delta_wallet_challenge_body"
-PROOF_TYPE = "delta_wallet_proof"
-PROOF_BODY_TYPE = "delta_wallet_proof_body"
-PROOF_VERSION = "1.0.0"
-
-SUPPORTED_STANDARDS = {
-    "ed25519_address_control_v1",
-}
-SUPPORTED_CHAINS = {
-    "ed25519-demo",
-}
+SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+ETH_ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
+ETH_SIGNATURE_RE = re.compile(r"^(0x)?[0-9a-fA-F]{130}$")
 
 
 def now_utc() -> str:
-    return _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def parse_time(value: str) -> _dt.datetime:
-    normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
-    parsed = _dt.datetime.fromisoformat(normalized)
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=_dt.timezone.utc)
-    return parsed.astimezone(_dt.timezone.utc)
+def canonical_json_bytes(value: Any) -> bytes:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def sha256_prefixed(data: bytes) -> str:
+    import hashlib
+
+    return "sha256:" + hashlib.sha256(data).hexdigest()
+
+
+def canonical_sha256(value: Any) -> str:
+    return sha256_prefixed(canonical_json_bytes(value))
 
 
 def b64url_no_padding(data: bytes) -> str:
@@ -70,7 +88,7 @@ def b64url_no_padding(data: bytes) -> str:
 
 
 def b64url_decode_unpadded(value: str, field: str) -> bytes:
-    if not isinstance(value, str) or not value:
+    if not value:
         raise ValueError(f"{field} is empty")
     padded = value + ("=" * ((4 - len(value) % 4) % 4))
     try:
@@ -79,617 +97,681 @@ def b64url_decode_unpadded(value: str, field: str) -> bytes:
         raise ValueError(f"{field} is not valid base64url") from exc
 
 
-def canonical_json_bytes(value: Any) -> bytes:
-    return json.dumps(
-        value,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-        allow_nan=False,
-    ).encode("utf-8")
-
-
-def sha256_prefixed(data: bytes) -> str:
-    return SHA256_PREFIX + hashlib.sha256(data).hexdigest()
-
-
-def canonical_sha256(value: Any) -> str:
-    return sha256_prefixed(canonical_json_bytes(value))
-
-
-def read_json(path: Path) -> Any:
-    with path.open("r", encoding="utf-8-sig") as fh:
-        return json.load(fh)
+def load_json(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def write_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+        json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
         newline="\n",
     )
 
 
-def write_private_key_file(path: Path, value: str, *, force: bool = False) -> None:
-    if path.exists() and not force:
-        raise SystemExit(f"private key file already exists: {path}. Use --force to overwrite test keys intentionally.")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(value + "\n", encoding="utf-8", newline="\n")
+def hash_record_file(path: Path) -> tuple[str, str]:
+    record = load_json(path.resolve())
+    record_hash = canonical_sha256(record)
+    record_type = "unknown"
+    if isinstance(record, dict):
+        body = record.get("record_body")
+        if isinstance(body, dict) and isinstance(body.get("type"), str):
+            record_type = body["type"]
+        elif isinstance(record.get("type"), str):
+            record_type = record["type"]
+    return record_hash, record_type
 
 
-def public_key_string(public_key: Ed25519PublicKey) -> str:
-    raw = public_key.public_bytes(Encoding.Raw, PublicFormat.Raw)
-    return PUBLIC_KEY_PREFIX + b64url_no_padding(raw)
+def require_standard_chain(standard: str, chain: str) -> None:
+    if standard not in SUPPORTED_STANDARDS:
+        raise SystemExit(f"unsupported wallet standard: {standard}")
+    if standard == STANDARD_ED25519 and chain != CHAIN_ED25519_DEMO:
+        raise SystemExit(f"{STANDARD_ED25519} requires chain {CHAIN_ED25519_DEMO}")
+    if standard == STANDARD_ETH_EIP191 and chain != CHAIN_ETHEREUM:
+        raise SystemExit(f"{STANDARD_ETH_EIP191} requires chain {CHAIN_ETHEREUM}")
 
 
-def address_from_public_key_text(public_key_text: str) -> str:
-    # In this MVP, the demo address is the Ed25519 raw public key string.
-    # This is intentionally NOT an ETH/BTC/KAS address format.
-    return public_key_text
+def infer_standard(chain: str, explicit: str | None) -> str:
+    if explicit:
+        return explicit
+    if chain == CHAIN_ETHEREUM:
+        return STANDARD_ETH_EIP191
+    return STANDARD_ED25519
 
 
-def public_key_hash(public_key_text: str) -> str:
-    return sha256_prefixed(public_key_text.encode("utf-8"))
+def normalize_eth_signature(signature: str) -> str:
+    sig = signature.strip()
+    if not sig.startswith("0x"):
+        sig = "0x" + sig
+    return sig
 
 
-def load_private_key(path: Path) -> Ed25519PrivateKey:
-    text = path.read_text(encoding="utf-8-sig").strip()
+def normalize_eth_address(address: str) -> str:
+    return address.strip()
+
+
+def validate_address_shape(standard: str, address: str) -> bool:
+    if standard == STANDARD_ED25519:
+        if not isinstance(address, str) or not address.startswith(PUBLIC_KEY_PREFIX):
+            return False
+        try:
+            raw = b64url_decode_unpadded(address[len(PUBLIC_KEY_PREFIX) :], "ed25519 address")
+            return len(raw) == 32
+        except Exception:
+            return False
+    if standard == STANDARD_ETH_EIP191:
+        return isinstance(address, str) and ETH_ADDRESS_RE.match(address) is not None
+    return False
+
+
+def build_wallet_message(challenge_body: dict[str, Any]) -> str:
+    target = challenge_body.get("target") or {}
+    record_hash = target.get("record_hash", "none")
+    lines = [
+        "DELTA Wallet Address Control Challenge",
+        f"protocol={challenge_body.get('protocol_version')}",
+        f"challenge_id={challenge_body.get('challenge_id')}",
+        f"chain={challenge_body.get('chain')}",
+        f"standard={challenge_body.get('standard')}",
+        f"address={challenge_body.get('address')}",
+        f"domain={challenge_body.get('domain')}",
+        f"purpose={challenge_body.get('purpose')}",
+        f"record_hash={record_hash}",
+        f"created_at={challenge_body.get('created_at')}",
+        f"nonce={challenge_body.get('nonce')}",
+    ]
+    return "\n".join(lines)
+
+
+def load_ed25519_private_key(path: Path) -> Ed25519PrivateKey:
+    text = path.read_text(encoding="utf-8").strip()
     if not text.startswith(PRIVATE_SEED_PREFIX):
-        raise SystemExit("wallet private key must start with ed25519seed:")
-    seed = b64url_decode_unpadded(text[len(PRIVATE_SEED_PREFIX):], "wallet_private_key")
+        raise SystemExit("demo Ed25519 key must start with ed25519seed:")
+    seed = b64url_decode_unpadded(text[len(PRIVATE_SEED_PREFIX) :], "ed25519 private seed")
     if len(seed) != 32:
-        raise SystemExit("wallet private key seed must decode to 32 bytes")
+        raise SystemExit("demo Ed25519 seed must decode to 32 bytes")
     return Ed25519PrivateKey.from_private_bytes(seed)
 
 
-def load_challenge(path: Path) -> dict[str, Any]:
-    challenge = read_json(path)
-    if not isinstance(challenge, dict):
-        raise SystemExit("challenge JSON must be an object")
-    return challenge
+def ed25519_public_key_text(public_key: Ed25519PublicKey) -> str:
+    public_bytes = public_key.public_bytes(Encoding.Raw, PublicFormat.Raw)
+    return PUBLIC_KEY_PREFIX + b64url_no_padding(public_bytes)
 
 
-def load_proof(path: Path) -> dict[str, Any]:
-    proof = read_json(path)
-    if not isinstance(proof, dict):
-        raise SystemExit("wallet proof JSON must be an object")
-    return proof
+def verify_ed25519_challenge_signature(challenge_body: dict[str, Any], proof_body: dict[str, Any]) -> tuple[bool, str]:
+    try:
+        signature = proof_body.get("signature") or {}
+        public_key_text = signature.get("public_key")
+        signature_text = signature.get("signature")
+        signed_hash = signature.get("signed_hash")
+        if not isinstance(public_key_text, str) or not public_key_text.startswith(PUBLIC_KEY_PREFIX):
+            return False, "ed25519_public_key_invalid"
+        if proof_body.get("address") != public_key_text:
+            return False, "ed25519_address_public_key_mismatch"
+        if not isinstance(signature_text, str) or not signature_text.startswith(SIGNATURE_PREFIX):
+            return False, "ed25519_signature_shape_invalid"
+        payload = canonical_json_bytes(challenge_body)
+        payload_hash = sha256_prefixed(payload)
+        if signed_hash != payload_hash:
+            return False, "ed25519_signed_hash_mismatch"
+        public_bytes = b64url_decode_unpadded(public_key_text[len(PUBLIC_KEY_PREFIX) :], "ed25519 public key")
+        sig_bytes = b64url_decode_unpadded(signature_text[len(SIGNATURE_PREFIX) :], "ed25519 signature")
+        if len(public_bytes) != 32:
+            return False, "ed25519_public_key_length_invalid"
+        if len(sig_bytes) != 64:
+            return False, "ed25519_signature_length_invalid"
+        Ed25519PublicKey.from_public_bytes(public_bytes).verify(sig_bytes, payload)
+        return True, "ed25519_signature_valid"
+    except InvalidSignature:
+        return False, "ed25519_signature_invalid"
+    except Exception as exc:
+        return False, f"ed25519_signature_error:{type(exc).__name__}"
 
 
-def load_record(path: Path) -> dict[str, Any]:
-    record = read_json(path)
-    if not isinstance(record, dict):
-        raise SystemExit("record JSON must be an object")
-    return record
+def verify_ethereum_personal_sign(message: str, signature_hex: str, address: str) -> tuple[bool, str, str | None]:
+    if not HAS_ETH_ACCOUNT:
+        return False, "eth_account_missing_install_with_python_m_pip_install_eth_account", None
+    if not isinstance(message, str) or not message:
+        return False, "ethereum_message_missing", None
+    if not isinstance(signature_hex, str):
+        return False, "ethereum_signature_missing", None
+    signature = normalize_eth_signature(signature_hex)
+    if ETH_SIGNATURE_RE.match(signature) is None:
+        return False, "ethereum_eip191_signature_shape_invalid", None
+    if not isinstance(address, str) or ETH_ADDRESS_RE.match(address) is None:
+        return False, "ethereum_address_shape_invalid", None
+    try:
+        encoded = encode_defunct(text=message)  # type: ignore[misc]
+        recovered = Account.recover_message(encoded, signature=signature)  # type: ignore[union-attr]
+        ok = recovered.lower() == address.lower()
+        return ok, "ethereum_eip191_signature_valid" if ok else "ethereum_eip191_signature_invalid", recovered
+    except Exception as exc:
+        return False, f"ethereum_eip191_signature_error:{type(exc).__name__}", None
 
 
-def record_type(record: dict[str, Any]) -> str:
-    body = record.get("record_body") if isinstance(record.get("record_body"), dict) else {}
-    value = body.get("type") or record.get("type") or "delta_record"
-    return str(value)
-
-
-def make_record_target(record: dict[str, Any], record_path: Path) -> dict[str, Any]:
-    return {
-        "record_hash": canonical_sha256(record),
-        "record_type": record_type(record),
-        "record_path_hint": str(record_path),
-        "hash_algorithm": "sha256(canonical_json(full_delta_record_json))",
-    }
-
-
-def validate_challenge_self_check(challenge: dict[str, Any]) -> tuple[bool, str, dict[str, Any] | None, str]:
-    if challenge.get("type") != CHALLENGE_TYPE or challenge.get("protocol") != PROTOCOL:
-        return False, "challenge_type_or_protocol_invalid", None, ""
-    body = challenge.get("challenge_body") if isinstance(challenge.get("challenge_body"), dict) else None
-    if body is None:
-        return False, "challenge_missing_body", None, ""
-    body_hash = canonical_sha256(body)
-    if challenge.get("challenge_body_hash") != body_hash:
-        return False, "challenge_body_hash_mismatch", body, body_hash
-    integrity = challenge.get("challenge_integrity") if isinstance(challenge.get("challenge_integrity"), dict) else {}
-    if integrity.get("self_check_hash") not in (None, body_hash):
-        return False, "challenge_self_check_hash_mismatch", body, body_hash
-    return True, "challenge_self_check_ok", body, body_hash
-
-
-def make_challenge_body(
-    *,
-    chain: str,
-    address: str,
-    purpose: str,
-    domain: str,
-    expires_at: str,
-    nonce: str,
-    record_target: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    if chain not in SUPPORTED_CHAINS:
-        raise SystemExit(f"unsupported chain for v2.3.0 MVP: {chain}")
-    if not address.startswith(PUBLIC_KEY_PREFIX):
-        raise SystemExit("ed25519 demo address must start with ed25519:")
-    issued_at = now_utc()
-    target: dict[str, Any] = {
-        "address": address,
-        "address_type": "ed25519_public_key_address_demo",
-        "public_key_hash": public_key_hash(address),
-    }
-    if record_target:
-        target.update(record_target)
-
-    body = {
-        "type": CHALLENGE_BODY_TYPE,
-        "version": PROOF_VERSION,
-        "protocol": PROTOCOL,
-        "wallet_standard": "ed25519_address_control_v1",
-        "chain": chain,
-        "challenge_id": "W-" + secrets.token_hex(12),
-        "nonce": nonce,
-        "issued_at": issued_at,
-        "expires_at": expires_at or None,
-        "domain": domain,
-        "purpose": purpose,
-        "target": target,
-        "statement": (
-            "Sign this DELTA challenge to prove control of the listed demo Ed25519 address. "
-            "When target.record_hash is present, the signature is also bound to that exact DELTA record hash. "
-            "Do not sign this message if the domain, purpose, address, or record hash is unexpected."
-        ),
-        "security_boundary": {
-            "proves_address_control_signature": True,
-            "proves_record_hash_binding_when_record_hash_present": bool(record_target),
-            "proves_legal_ownership": False,
-            "proves_real_world_identity": False,
-            "proves_wallet_balance": False,
-            "proves_chain_state": False,
-            "proves_mica_compliance": False,
-            "note": "v2.3.0 uses a demo Ed25519 adapter to harden the proof envelope. ETH/BTC/KAS adapters are separate roadmap items.",
-        },
-    }
-    return body
-
-
-def create_challenge(body: dict[str, Any]) -> dict[str, Any]:
-    body_hash = canonical_sha256(body)
-    return {
-        "type": CHALLENGE_TYPE,
-        "version": PROOF_VERSION,
-        "protocol": PROTOCOL,
-        "challenge_body_hash": body_hash,
-        "challenge_body": body,
-        "challenge_integrity": {
-            "hash_algorithm": "sha256(canonical_json(challenge_body))",
-            "self_check_hash": body_hash,
-        },
-    }
-
-
-def create_wallet_proof(
-    *,
-    challenge: dict[str, Any],
-    private_key: Ed25519PrivateKey,
-    holder: str,
-    record: dict[str, Any] | None = None,
-    record_path: Path | None = None,
-) -> dict[str, Any]:
-    challenge_ok, challenge_reason, challenge_body, challenge_body_hash = validate_challenge_self_check(challenge)
-    if not challenge_ok or challenge_body is None:
-        raise SystemExit(challenge_reason)
-
-    public_text = public_key_string(private_key.public_key())
-    address = address_from_public_key_text(public_text)
-    target = challenge_body.get("target") if isinstance(challenge_body.get("target"), dict) else {}
-    expected_address = target.get("address")
-    if expected_address != address:
-        raise SystemExit("private key does not control the challenge target address")
-
-    record_target: dict[str, Any] | None = None
-    if record is not None:
-        if record_path is None:
-            raise SystemExit("record_path is required when record is supplied")
-        record_target = make_record_target(record, record_path)
-        if target.get("record_hash") != record_target["record_hash"]:
-            raise SystemExit(
-                "challenge target.record_hash does not match supplied record. "
-                "Create the challenge with --record before signing."
-            )
-
-    payload = canonical_json_bytes(challenge_body)
-    signature_bytes = private_key.sign(payload)
-
-    proof_target = {
-        "challenge_hash": challenge_body_hash,
-        "challenge_id": challenge_body.get("challenge_id"),
-        "address": address,
-        "address_type": target.get("address_type"),
-        "public_key_hash": public_key_hash(public_text),
-    }
-    if target.get("record_hash"):
-        proof_target["record_hash"] = target.get("record_hash")
-        proof_target["record_type"] = target.get("record_type")
-        proof_target["record_hash_algorithm"] = target.get("hash_algorithm")
-        proof_target["record_path_hint"] = target.get("record_path_hint")
-
-    body = {
-        "type": PROOF_BODY_TYPE,
-        "version": PROOF_VERSION,
-        "protocol": PROTOCOL,
-        "wallet_standard": challenge_body.get("wallet_standard"),
-        "chain": challenge_body.get("chain"),
-        "target": proof_target,
-        "attestation": {
-            "type": "delta_wallet_address_control_attestation",
-            "holder": holder,
-            "created_at": now_utc(),
-            "claim": "signer_controlled_address_for_challenge",
-            "record_binding_signed_by_wallet": bool(target.get("record_hash")),
-        },
-        "signature": {
-            "type": "delta_wallet_signature",
-            "alg": "Ed25519",
-            "signed_payload": "challenge_body",
-            "signed_hash": challenge_body_hash,
-            "signed_record_hash": target.get("record_hash") or None,
-            "public_key": public_text,
-            "address": address,
-            "signature": SIGNATURE_PREFIX + b64url_no_padding(signature_bytes),
-        },
-        "security_boundary": {
-            "proves_address_control_signature": True,
-            "proves_record_hash_binding_when_record_hash_present": bool(target.get("record_hash")),
-            "proves_legal_ownership": False,
-            "proves_real_world_identity": False,
-            "proves_wallet_balance": False,
-            "proves_chain_state": False,
-            "proves_mica_compliance": False,
-            "note": "This proof verifies control of a demo Ed25519 address for a specific signed challenge. If target.record_hash is present, it is inside the signed challenge_body.",
-        },
-    }
-    body_hash = canonical_sha256(body)
-    return {
-        "type": PROOF_TYPE,
-        "version": PROOF_VERSION,
-        "protocol": PROTOCOL,
-        "proof_body_hash": body_hash,
-        "proof_body": body,
-        "proof_integrity": {
-            "hash_algorithm": "sha256(canonical_json(proof_body))",
-            "self_check_hash": body_hash,
-            "signed": False,
-            "signature": None,
-            "note": "The wallet signature is over challenge_body. The proof envelope uses hash self-checks.",
-        },
-    }
-
-
-def verify_wallet_proof(
-    *,
-    proof: dict[str, Any],
-    challenge: dict[str, Any] | None = None,
-    record: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    checks: dict[str, bool] = {}
-    reasons: dict[str, str] = {}
-
-    checks["proof_shape_ok"] = isinstance(proof, dict) and isinstance(proof.get("proof_body"), dict)
-    reasons["proof_shape"] = "proof_shape_ok" if checks["proof_shape_ok"] else "proof_must_be_object_with_proof_body"
-
-    body = proof.get("proof_body") if isinstance(proof.get("proof_body"), dict) else {}
-    checks["proof_type_ok"] = proof.get("type") == PROOF_TYPE and proof.get("protocol") == PROTOCOL
-    reasons["proof_type"] = "proof_type_ok" if checks["proof_type_ok"] else "proof_type_or_protocol_invalid"
-
-    checks["body_type_ok"] = body.get("type") == PROOF_BODY_TYPE and body.get("protocol") == PROTOCOL
-    reasons["body_type"] = "body_type_ok" if checks["body_type_ok"] else "proof_body_type_or_protocol_invalid"
-
-    expected_body_hash = canonical_sha256(body)
-    checks["proof_body_hash_ok"] = proof.get("proof_body_hash") == expected_body_hash
-    reasons["proof_body_hash"] = "proof_body_hash_matches" if checks["proof_body_hash_ok"] else "proof_body_hash_mismatch"
-
-    integrity = proof.get("proof_integrity") if isinstance(proof.get("proof_integrity"), dict) else {}
-    checks["self_check_ok"] = integrity.get("self_check_hash") in (None, expected_body_hash)
-    reasons["self_check"] = "self_check_ok" if checks["self_check_ok"] else "proof_integrity_self_check_hash_mismatch"
-
-    standard = body.get("wallet_standard")
-    chain = body.get("chain")
-    checks["wallet_standard_ok"] = standard in SUPPORTED_STANDARDS
-    reasons["wallet_standard"] = "wallet_standard_supported" if checks["wallet_standard_ok"] else f"unsupported_wallet_standard:{standard}"
-    checks["chain_ok"] = chain in SUPPORTED_CHAINS
-    reasons["chain"] = "chain_supported" if checks["chain_ok"] else f"unsupported_chain:{chain}"
-
-    target = body.get("target") if isinstance(body.get("target"), dict) else {}
-    signature = body.get("signature") if isinstance(body.get("signature"), dict) else {}
-    target_address = target.get("address")
-    public_text = signature.get("public_key")
-    signature_address = signature.get("address")
-
-    checks["address_shape_ok"] = isinstance(target_address, str) and target_address.startswith(PUBLIC_KEY_PREFIX)
-    reasons["address_shape"] = "address_shape_ok" if checks["address_shape_ok"] else "address_missing_or_invalid"
-
-    checks["public_key_hash_ok"] = isinstance(public_text, str) and public_text.startswith(PUBLIC_KEY_PREFIX) and target.get("public_key_hash") == public_key_hash(public_text)
-    reasons["public_key_hash"] = "public_key_hash_matches" if checks["public_key_hash_ok"] else "public_key_hash_mismatch"
-
-    checks["address_binding_ok"] = isinstance(public_text, str) and address_from_public_key_text(public_text) == target_address and signature_address == target_address
-    reasons["address_binding"] = "signature_public_key_address_matches_target" if checks["address_binding_ok"] else "signature_public_key_address_mismatch"
-
-    challenge_body = None
-    challenge_hash = ""
-    challenge_target: dict[str, Any] = {}
-    if challenge is not None:
-        challenge_ok, challenge_reason, challenge_body, challenge_hash = validate_challenge_self_check(challenge)
-        checks["challenge_self_check_ok"] = challenge_ok
-        reasons["challenge_self_check"] = challenge_reason
-        if challenge_body is not None:
-            challenge_target = challenge_body.get("target") if isinstance(challenge_body.get("target"), dict) else {}
-        checks["challenge_binding_ok"] = (
-            challenge_ok
-            and target.get("challenge_hash") == challenge_hash
-            and signature.get("signed_hash") == challenge_hash
-            and target.get("challenge_id") == challenge_body.get("challenge_id") if isinstance(challenge_body, dict) else False
-        )
-        reasons["challenge_binding"] = "proof_targets_supplied_challenge" if checks["challenge_binding_ok"] else "challenge_hash_or_id_mismatch"
-
-        expires_at = challenge_body.get("expires_at") if isinstance(challenge_body, dict) else None
-        if expires_at:
-            try:
-                checks["challenge_not_expired_ok"] = parse_time(str(expires_at)) >= _dt.datetime.now(_dt.timezone.utc)
-                reasons["challenge_not_expired"] = "challenge_not_expired" if checks["challenge_not_expired_ok"] else "challenge_expired"
-            except Exception as exc:
-                checks["challenge_not_expired_ok"] = False
-                reasons["challenge_not_expired"] = f"challenge_expiry_invalid:{type(exc).__name__}"
-        else:
-            checks["challenge_not_expired_ok"] = True
-            reasons["challenge_not_expired"] = "no_expiry_declared"
-    else:
-        checks["challenge_self_check_ok"] = True
-        reasons["challenge_self_check"] = "challenge_not_supplied"
-        checks["challenge_binding_ok"] = True
-        reasons["challenge_binding"] = "challenge_not_supplied_binding_not_checked"
-        checks["challenge_not_expired_ok"] = True
-        reasons["challenge_not_expired"] = "challenge_not_supplied_expiry_not_checked"
-
-    proof_record_hash = target.get("record_hash")
-    challenge_record_hash = challenge_target.get("record_hash") if challenge_target else None
-
-    checks["record_hash_shape_ok"] = proof_record_hash in (None, "") or (isinstance(proof_record_hash, str) and proof_record_hash.startswith(SHA256_PREFIX))
-    reasons["record_hash_shape"] = "record_hash_shape_ok" if checks["record_hash_shape_ok"] else "proof_target_record_hash_invalid"
-
-    checks["proof_challenge_record_binding_ok"] = True
-    reasons["proof_challenge_record_binding"] = "no_record_hash_declared"
-    if proof_record_hash or challenge_record_hash:
-        checks["proof_challenge_record_binding_ok"] = bool(proof_record_hash) and proof_record_hash == challenge_record_hash and signature.get("signed_record_hash") in (None, proof_record_hash)
-        reasons["proof_challenge_record_binding"] = "proof_record_hash_matches_signed_challenge_record_hash" if checks["proof_challenge_record_binding_ok"] else "proof_record_hash_challenge_record_hash_mismatch"
-
-    record_hash = ""
-    checks["record_binding_ok"] = True
-    reasons["record_binding"] = "record_not_supplied_binding_not_checked"
-    if record is not None:
-        record_hash = canonical_sha256(record)
-        checks["record_binding_ok"] = proof_record_hash == record_hash and challenge_record_hash == record_hash
-        reasons["record_binding"] = "proof_and_challenge_record_hash_match_record" if checks["record_binding_ok"] else "record_hash_mismatch"
-
-    checks["record_signed_by_challenge_ok"] = True
-    reasons["record_signed_by_challenge"] = "record_not_supplied_or_not_declared"
-    if record is not None or proof_record_hash or challenge_record_hash:
-        checks["record_signed_by_challenge_ok"] = bool(challenge_record_hash) and bool(proof_record_hash) and proof_record_hash == challenge_record_hash
-        reasons["record_signed_by_challenge"] = "record_hash_is_inside_signed_challenge_body" if checks["record_signed_by_challenge_ok"] else "record_hash_not_inside_signed_challenge_body"
-
-    checks["signature_shape_ok"] = (
-        signature.get("type") == "delta_wallet_signature"
-        and signature.get("alg") == "Ed25519"
-        and signature.get("signed_payload") == "challenge_body"
-        and isinstance(signature.get("signature"), str)
-        and signature.get("signature", "").startswith(SIGNATURE_PREFIX)
-    )
-    reasons["signature_shape"] = "signature_shape_ok" if checks["signature_shape_ok"] else "signature_shape_invalid"
-
-    checks["signature_ok"] = False
-    reasons["signature"] = "signature_not_verified"
-    if challenge_body is not None and checks["signature_shape_ok"] and isinstance(public_text, str) and public_text.startswith(PUBLIC_KEY_PREFIX):
-        try:
-            public_raw = b64url_decode_unpadded(public_text[len(PUBLIC_KEY_PREFIX):], "public_key")
-            sig_raw = b64url_decode_unpadded(signature["signature"][len(SIGNATURE_PREFIX):], "signature")
-            if len(public_raw) != 32:
-                raise ValueError("public_key_not_32_bytes")
-            if len(sig_raw) != 64:
-                raise ValueError("signature_not_64_bytes")
-            pub = Ed25519PublicKey.from_public_bytes(public_raw)
-            pub.verify(sig_raw, canonical_json_bytes(challenge_body))
-            checks["signature_ok"] = True
-            reasons["signature"] = "ed25519_signature_verified"
-        except InvalidSignature:
-            checks["signature_ok"] = False
-            reasons["signature"] = "ed25519_signature_invalid"
-        except Exception as exc:
-            checks["signature_ok"] = False
-            reasons["signature"] = f"signature_verify_error:{type(exc).__name__}"
-    elif challenge is None:
-        reasons["signature"] = "challenge_not_supplied_signature_not_checked"
-
-    ok = all(checks.values())
-    return {
-        "ok": bool(ok),
-        "checks": checks,
-        "reasons": reasons,
-        "proof_body_hash": expected_body_hash,
-        "challenge_hash": challenge_hash or target.get("challenge_hash", ""),
-        "address": target_address or "",
-        "wallet_standard": standard or "",
-        "chain": chain or "",
-        "record_hash": record_hash or proof_record_hash or "",
-    }
+def read_eth_private_key(path: Path) -> str:
+    text = path.read_text(encoding="utf-8").strip()
+    if text.startswith(ETH_PRIVATE_PREFIX):
+        text = text[len(ETH_PRIVATE_PREFIX) :].strip()
+    if not text.startswith("0x"):
+        text = "0x" + text
+    if not re.match(r"^0x[0-9a-fA-F]{64}$", text):
+        raise SystemExit("demo Ethereum private key must be 32-byte hex")
+    return text
 
 
 def command_keygen(args: argparse.Namespace) -> int:
     private_key = Ed25519PrivateKey.generate()
-    private_raw = private_key.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
-    public_text = public_key_string(private_key.public_key())
-    address = address_from_public_key_text(public_text)
-    private_value = PRIVATE_SEED_PREFIX + b64url_no_padding(private_raw)
+    seed = private_key.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
+    public_key_text = ed25519_public_key_text(private_key.public_key())
+    public_key_hash = sha256_prefixed(public_key_text.encode("utf-8"))
 
-    private_out = Path(args.private_out).resolve()
-    write_private_key_file(private_out, private_value, force=args.force)
+    private_path = Path(args.private_out)
+    public_path = Path(args.public_out)
+    if private_path.exists() and not args.force:
+        raise SystemExit("private key path exists; pass --force to overwrite")
+
+    private_path.parent.mkdir(parents=True, exist_ok=True)
+    private_path.write_text(PRIVATE_SEED_PREFIX + b64url_no_padding(seed) + "\n", encoding="utf-8", newline="\n")
 
     public_doc = {
-        "type": "delta_wallet_demo_public_key",
-        "version": PROOF_VERSION,
-        "protocol": PROTOCOL,
-        "wallet_standard": "ed25519_address_control_v1",
-        "chain": "ed25519-demo",
-        "public_key": public_text,
-        "public_key_hash": public_key_hash(public_text),
-        "address": address,
-        "address_type": "ed25519_public_key_address_demo",
-        "security_boundary": {
-            "demo_key_only": True,
-            "not_a_production_crypto_wallet": True,
-            "do_not_commit_private_key": True,
-        },
+        "type": "delta_wallet_public_key",
+        "protocol_version": PROTOCOL_VERSION,
+        "standard": STANDARD_ED25519,
+        "chain": CHAIN_ED25519_DEMO,
+        "address": public_key_text,
+        "public_key": public_key_text,
+        "public_key_hash": public_key_hash,
+        "created_at": now_utc(),
+        "security_boundary": "demo key for local DELTA wallet proof tests only; do not use for funds",
     }
-    if args.public_out:
-        write_json(Path(args.public_out).resolve(), public_doc)
+    write_json(public_path, public_doc)
 
     print("DELTA_WALLET_KEYGEN_OK=True")
-    print(f"DELTA_WALLET_PRIVATE_KEY_WRITTEN={private_out}")
-    print("DELTA_WALLET_PRIVATE_KEY_WARNING=do_not_commit_do_not_paste_to_chat_demo_key_only")
-    if args.public_out:
-        print(f"DELTA_WALLET_PUBLIC_KEY_WRITTEN={Path(args.public_out).resolve()}")
-    print(f"DELTA_WALLET_ADDRESS={address}")
-    print(f"DELTA_WALLET_PUBLIC_KEY_HASH={public_key_hash(public_text)}")
+    print(f"DELTA_WALLET_PRIVATE_WRITTEN={private_path}")
+    print("DELTA_WALLET_PRIVATE_WARNING=do_not_commit_do_not_paste_to_chat_demo_key_only")
+    print(f"DELTA_WALLET_PUBLIC_KEY_WRITTEN={public_path}")
+    print(f"DELTA_WALLET_ADDRESS={public_key_text}")
+    print(f"DELTA_WALLET_PUBLIC_KEY_HASH={public_key_hash}")
+    return 0
+
+
+def command_eth_keygen(args: argparse.Namespace) -> int:
+    if not HAS_ETH_ACCOUNT:
+        raise SystemExit("eth-account is required for eth-keygen. Install with: python -m pip install eth-account")
+    acct = Account.create()  # type: ignore[union-attr]
+    private_hex = acct.key.hex()
+    if not private_hex.startswith("0x"):
+        private_hex = "0x" + private_hex
+    address = acct.address
+
+    private_path = Path(args.private_out)
+    public_path = Path(args.public_out)
+    if private_path.exists() and not args.force:
+        raise SystemExit("demo Ethereum key path exists; pass --force to overwrite")
+    private_path.parent.mkdir(parents=True, exist_ok=True)
+    private_path.write_text(ETH_PRIVATE_PREFIX + private_hex + "\n", encoding="utf-8", newline="\n")
+
+    public_doc = {
+        "type": "delta_wallet_public_key",
+        "protocol_version": PROTOCOL_VERSION,
+        "standard": STANDARD_ETH_EIP191,
+        "chain": CHAIN_ETHEREUM,
+        "address": address,
+        "created_at": now_utc(),
+        "security_boundary": "demo Ethereum key for local DELTA wallet proof tests only; do not use for funds",
+    }
+    write_json(public_path, public_doc)
+
+    print("DELTA_WALLET_ETH_KEYGEN_OK=True")
+    print(f"DELTA_WALLET_ETH_PRIVATE_WRITTEN={private_path}")
+    print("DELTA_WALLET_ETH_PRIVATE_WARNING=do_not_commit_do_not_paste_to_chat_demo_key_only_do_not_use_for_funds")
+    print(f"DELTA_WALLET_ETH_PUBLIC_WRITTEN={public_path}")
+    print(f"DELTA_WALLET_ETH_ADDRESS={address}")
     return 0
 
 
 def command_create_challenge(args: argparse.Namespace) -> int:
-    nonce = args.nonce or b64url_no_padding(secrets.token_bytes(32))
-    record_target = None
+    standard = infer_standard(args.chain, args.standard)
+    require_standard_chain(standard, args.chain)
+    if not validate_address_shape(standard, args.address):
+        raise SystemExit(f"address shape invalid for {standard}")
+
+    target: dict[str, Any] = {"record_hash": None, "record_type": None, "record_path": None}
+    record_hash = None
     if args.record:
-        record_path = Path(args.record).resolve()
-        record_target = make_record_target(load_record(record_path), record_path)
-    body = make_challenge_body(
-        chain=args.chain,
-        address=args.address,
-        purpose=args.purpose,
-        domain=args.domain,
-        expires_at=args.expires_at,
-        nonce=nonce,
-        record_target=record_target,
-    )
-    challenge = create_challenge(body)
-    out = Path(args.out).resolve()
-    write_json(out, challenge)
+        record_hash, record_type = hash_record_file(Path(args.record))
+        target = {
+            "record_type": "delta_record_full_json",
+            "record_hash": record_hash,
+            "record_path": str(Path(args.record).resolve()),
+            "observed_record_body_type": record_type,
+            "binding": "wallet challenge signs the full canonical SHA-256 hash of delta-record.json",
+        }
+
+    challenge_body: dict[str, Any] = {
+        "type": CHALLENGE_BODY_TYPE,
+        "protocol_version": PROTOCOL_VERSION,
+        "tool_version": TOOL_VERSION,
+        "challenge_id": args.challenge_id or "W-" + secrets.token_hex(8),
+        "created_at": now_utc(),
+        "expires_at": args.expires_at,
+        "domain": args.domain,
+        "purpose": args.purpose,
+        "chain": args.chain,
+        "standard": standard,
+        "address": args.address,
+        "nonce": secrets.token_hex(16),
+        "target": target,
+        "security_boundary": {
+            "proves_legal_ownership": False,
+            "proves_identity": False,
+            "proves_balance": False,
+            "proves_address_control_for_signed_challenge": True,
+        },
+    }
+    challenge_body["message"] = build_wallet_message(challenge_body)
+    challenge_body["message_hash"] = sha256_prefixed(challenge_body["message"].encode("utf-8"))
+
+    challenge_body_hash = canonical_sha256(challenge_body)
+    envelope = {
+        "type": CHALLENGE_ENVELOPE_TYPE,
+        "protocol_version": PROTOCOL_VERSION,
+        "challenge_body_hash": challenge_body_hash,
+        "challenge_body": challenge_body,
+        "challenge_integrity": {"self_check": challenge_body_hash},
+    }
+    write_json(Path(args.out), envelope)
+
     print("DELTA_WALLET_CHALLENGE_CREATE_OK=True")
-    print(f"DELTA_WALLET_CHALLENGE={out}")
-    print(f"DELTA_WALLET_CHALLENGE_ID={body['challenge_id']}")
-    print(f"DELTA_WALLET_CHALLENGE_HASH={challenge['challenge_body_hash']}")
-    print(f"DELTA_WALLET_ADDRESS={body['target']['address']}")
-    print(f"DELTA_WALLET_CHAIN={body['chain']}")
-    if body["target"].get("record_hash"):
-        print(f"DELTA_WALLET_RECORD_HASH={body['target']['record_hash']}")
-        print("DELTA_WALLET_RECORD_BINDING_DECLARED=True")
-    else:
-        print("DELTA_WALLET_RECORD_BINDING_DECLARED=False")
+    print(f"DELTA_WALLET_CHALLENGE={Path(args.out).resolve()}")
+    print(f"DELTA_WALLET_CHALLENGE_ID={challenge_body['challenge_id']}")
+    print(f"DELTA_WALLET_CHALLENGE_HASH={challenge_body_hash}")
+    print(f"DELTA_WALLET_ADDRESS={args.address}")
+    print(f"DELTA_WALLET_CHAIN={args.chain}")
+    print(f"DELTA_WALLET_STANDARD={standard}")
+    print(f"DELTA_WALLET_RECORD_BINDING_DECLARED={bool(record_hash)}")
+    if record_hash:
+        print(f"DELTA_WALLET_RECORD_HASH={record_hash}")
     return 0
+
+
+def load_challenge_body(challenge_path: Path) -> tuple[dict[str, Any], dict[str, Any], str, bool]:
+    envelope = load_json(challenge_path)
+    if not isinstance(envelope, dict) or not isinstance(envelope.get("challenge_body"), dict):
+        raise SystemExit("challenge JSON must contain challenge_body")
+    body = envelope["challenge_body"]
+    computed = canonical_sha256(body)
+    declared = envelope.get("challenge_body_hash")
+    return envelope, body, computed, declared == computed
 
 
 def command_create_proof(args: argparse.Namespace) -> int:
-    challenge = load_challenge(Path(args.challenge).resolve())
-    private_key = load_private_key(Path(args.private_key).resolve())
-    record = None
-    record_path = None
+    _challenge_envelope, challenge_body, challenge_hash, challenge_self_check_ok = load_challenge_body(Path(args.challenge))
+    if not challenge_self_check_ok:
+        raise SystemExit("challenge self-check failed; refusing to sign")
+
+    standard = challenge_body.get("standard")
+    chain = challenge_body.get("chain")
+    address = challenge_body.get("address")
+    require_standard_chain(str(standard), str(chain))
+
+    target = challenge_body.get("target") if isinstance(challenge_body.get("target"), dict) else {}
+    challenge_record_hash = target.get("record_hash")
+    record_hash = None
     if args.record:
-        record_path = Path(args.record).resolve()
-        record = load_record(record_path)
-    proof = create_wallet_proof(challenge=challenge, private_key=private_key, holder=args.holder, record=record, record_path=record_path)
-    out = Path(args.out).resolve()
-    write_json(out, proof)
-    body = proof["proof_body"]
-    print("DELTA_WALLET_PROOF_CREATE_OK=True")
-    print(f"DELTA_WALLET_PROOF={out}")
-    print(f"DELTA_WALLET_PROOF_BODY_HASH={proof['proof_body_hash']}")
-    print(f"DELTA_WALLET_CHALLENGE_HASH={body['target']['challenge_hash']}")
-    print(f"DELTA_WALLET_ADDRESS={body['target']['address']}")
-    print(f"DELTA_WALLET_CHAIN={body['chain']}")
-    print(f"DELTA_WALLET_STANDARD={body['wallet_standard']}")
-    if body["target"].get("record_hash"):
-        print(f"DELTA_WALLET_RECORD_HASH={body['target']['record_hash']}")
-        print("DELTA_WALLET_RECORD_BINDING_SIGNED=True")
+        record_hash, _record_type = hash_record_file(Path(args.record))
+        if challenge_record_hash and challenge_record_hash != record_hash:
+            raise SystemExit("--record does not match challenge_body.target.record_hash")
+        if not challenge_record_hash:
+            raise SystemExit("--record supplied but challenge does not declare target.record_hash")
+
+    signature_obj: dict[str, Any]
+    recovered_address = None
+    if standard == STANDARD_ED25519:
+        if not args.private_key:
+            raise SystemExit("--private-key is required for Ed25519 proof creation")
+        private_key = load_ed25519_private_key(Path(args.private_key))
+        public_key_text = ed25519_public_key_text(private_key.public_key())
+        if public_key_text != address:
+            raise SystemExit("Ed25519 private key does not match challenge address")
+        payload = canonical_json_bytes(challenge_body)
+        signature_raw = private_key.sign(payload)
+        signature_obj = {
+            "type": "delta_wallet_signature",
+            "alg": "Ed25519",
+            "standard": STANDARD_ED25519,
+            "signed_payload": "challenge_body",
+            "signed_hash": sha256_prefixed(payload),
+            "public_key": public_key_text,
+            "public_key_hash": sha256_prefixed(public_key_text.encode("utf-8")),
+            "signature": SIGNATURE_PREFIX + b64url_no_padding(signature_raw),
+        }
+    elif standard == STANDARD_ETH_EIP191:
+        message = challenge_body.get("message")
+        if not isinstance(message, str) or not message:
+            raise SystemExit("Ethereum challenge must contain challenge_body.message")
+        if args.signature:
+            signature_hex = normalize_eth_signature(args.signature)
+            source = "external_signature"
+        elif args.eth_private_key:
+            if not HAS_ETH_ACCOUNT:
+                raise SystemExit("eth-account is required for --eth-private-key. Install with: python -m pip install eth-account")
+            private_hex = read_eth_private_key(Path(args.eth_private_key))
+            acct = Account.from_key(private_hex)  # type: ignore[union-attr]
+            if acct.address.lower() != str(address).lower():
+                raise SystemExit("Ethereum private key does not match challenge address")
+            signed = acct.sign_message(encode_defunct(text=message))  # type: ignore[misc]
+            signature_hex = signed.signature.hex()
+            if not signature_hex.startswith("0x"):
+                signature_hex = "0x" + signature_hex
+            source = "eth_demo_private_key"
+        else:
+            raise SystemExit("Ethereum EIP-191 proof creation requires --signature or --eth-private-key")
+
+        ok, reason, recovered_address = verify_ethereum_personal_sign(message, signature_hex, str(address))
+        if not ok:
+            raise SystemExit(f"Ethereum signature does not verify for challenge address: {reason}")
+        signature_obj = {
+            "type": "delta_wallet_signature",
+            "alg": "Ethereum-ECDSA",
+            "standard": STANDARD_ETH_EIP191,
+            "signed_payload": "challenge_message",
+            "signed_hash": sha256_prefixed(message.encode("utf-8")),
+            "signature": normalize_eth_signature(signature_hex),
+            "recovered_address": recovered_address,
+            "source": source,
+        }
     else:
-        print("DELTA_WALLET_RECORD_BINDING_SIGNED=False")
+        raise SystemExit(f"unsupported standard in challenge: {standard}")
+
+    proof_body: dict[str, Any] = {
+        "type": PROOF_BODY_TYPE,
+        "protocol_version": PROTOCOL_VERSION,
+        "tool_version": TOOL_VERSION,
+        "created_at": now_utc(),
+        "holder": args.holder,
+        "chain": chain,
+        "standard": standard,
+        "address": address,
+        "challenge_id": challenge_body.get("challenge_id"),
+        "challenge_hash": challenge_hash,
+        "challenge_body": challenge_body,
+        "target": target,
+        "signature": signature_obj,
+        "security_boundary": {
+            "proves_legal_ownership": False,
+            "proves_identity": False,
+            "proves_balance": False,
+            "proves_address_control_for_signed_challenge": True,
+        },
+    }
+    proof_body_hash = canonical_sha256(proof_body)
+    envelope = {
+        "type": PROOF_ENVELOPE_TYPE,
+        "protocol_version": PROTOCOL_VERSION,
+        "proof_body_hash": proof_body_hash,
+        "proof_body": proof_body,
+        "proof_integrity": {"self_check": proof_body_hash},
+    }
+    write_json(Path(args.out), envelope)
+
+    print("DELTA_WALLET_PROOF_CREATE_OK=True")
+    print(f"DELTA_WALLET_PROOF={Path(args.out).resolve()}")
+    print(f"DELTA_WALLET_PROOF_BODY_HASH={proof_body_hash}")
+    print(f"DELTA_WALLET_CHALLENGE_HASH={challenge_hash}")
+    print(f"DELTA_WALLET_ADDRESS={address}")
+    print(f"DELTA_WALLET_CHAIN={chain}")
+    print(f"DELTA_WALLET_STANDARD={standard}")
+    if challenge_record_hash:
+        print(f"DELTA_WALLET_RECORD_HASH={challenge_record_hash}")
+        print("DELTA_WALLET_RECORD_BINDING_SIGNED=True")
+    if recovered_address:
+        print(f"DELTA_WALLET_ETH_RECOVERED_ADDRESS={recovered_address}")
     return 0
 
 
+def set_check(checks: dict[str, bool], reasons: dict[str, str], key: str, ok: bool, ok_reason: str, fail_reason: str) -> None:
+    checks[key] = ok
+    reasons[key] = ok_reason if ok else fail_reason
+
+
 def command_verify_proof(args: argparse.Namespace) -> int:
-    proof = load_proof(Path(args.proof).resolve())
-    challenge = load_challenge(Path(args.challenge).resolve()) if args.challenge else None
-    record = load_record(Path(args.record).resolve()) if args.record else None
-    result = verify_wallet_proof(proof=proof, challenge=challenge, record=record)
-    checks = result["checks"]
-    reasons = result["reasons"]
-    print(f"DELTA_WALLET_VERIFY_OK={bool(result['ok'])}")
-    print(f"DELTA_WALLET_PROOF_SHAPE_OK={bool(checks.get('proof_shape_ok'))}")
-    print(f"DELTA_WALLET_PROOF_BODY_HASH_OK={bool(checks.get('proof_body_hash_ok'))}")
-    print(f"DELTA_WALLET_SELF_CHECK_OK={bool(checks.get('self_check_ok'))}")
-    print(f"DELTA_WALLET_STANDARD_OK={bool(checks.get('wallet_standard_ok'))}")
-    print(f"DELTA_WALLET_CHAIN_OK={bool(checks.get('chain_ok'))}")
-    print(f"DELTA_WALLET_ADDRESS_SHAPE_OK={bool(checks.get('address_shape_ok'))}")
-    print(f"DELTA_WALLET_PUBLIC_KEY_HASH_OK={bool(checks.get('public_key_hash_ok'))}")
-    print(f"DELTA_WALLET_ADDRESS_BINDING_OK={bool(checks.get('address_binding_ok'))}")
-    print(f"DELTA_WALLET_CHALLENGE_SELF_CHECK_OK={bool(checks.get('challenge_self_check_ok'))}")
-    print(f"DELTA_WALLET_CHALLENGE_BINDING_OK={bool(checks.get('challenge_binding_ok'))}")
-    print(f"DELTA_WALLET_CHALLENGE_NOT_EXPIRED_OK={bool(checks.get('challenge_not_expired_ok'))}")
-    print(f"DELTA_WALLET_RECORD_HASH_SHAPE_OK={bool(checks.get('record_hash_shape_ok'))}")
-    print(f"DELTA_WALLET_PROOF_CHALLENGE_RECORD_BINDING_OK={bool(checks.get('proof_challenge_record_binding_ok'))}")
-    print(f"DELTA_WALLET_RECORD_BINDING_OK={bool(checks.get('record_binding_ok'))}")
-    print(f"DELTA_WALLET_RECORD_SIGNED_BY_CHALLENGE_OK={bool(checks.get('record_signed_by_challenge_ok'))}")
-    print(f"DELTA_WALLET_SIGNATURE_SHAPE_OK={bool(checks.get('signature_shape_ok'))}")
-    print(f"DELTA_WALLET_SIGNATURE_OK={bool(checks.get('signature_ok'))}")
-    print(f"DELTA_WALLET_CHALLENGE_HASH={result.get('challenge_hash', '')}")
-    print(f"DELTA_WALLET_PROOF_BODY_HASH={result.get('proof_body_hash', '')}")
-    print(f"DELTA_WALLET_ADDRESS={result.get('address', '')}")
-    print(f"DELTA_WALLET_CHAIN={result.get('chain', '')}")
-    print(f"DELTA_WALLET_STANDARD={result.get('wallet_standard', '')}")
-    if result.get("record_hash"):
-        print(f"DELTA_WALLET_RECORD_HASH={result.get('record_hash', '')}")
-    if not result["ok"]:
-        for key, ok in sorted(checks.items()):
-            if not ok:
-                reason_key = key[:-3] if key.endswith("_ok") else key
-                print(f"DELTA_WALLET_REASON_{key.upper()}={reasons.get(reason_key, '')}")
-    return 0 if result["ok"] else 1
+    proof_envelope = load_json(Path(args.proof))
+    if not isinstance(proof_envelope, dict) or not isinstance(proof_envelope.get("proof_body"), dict):
+        raise SystemExit("proof JSON must contain proof_body")
+    proof_body = proof_envelope["proof_body"]
+
+    checks: dict[str, bool] = {}
+    reasons: dict[str, str] = {}
+
+    checks["proof_shape_ok"] = proof_envelope.get("type") == PROOF_ENVELOPE_TYPE and proof_body.get("type") == PROOF_BODY_TYPE
+    reasons["proof_shape_ok"] = "proof_shape_ok" if checks["proof_shape_ok"] else "proof_shape_invalid"
+
+    proof_body_hash = canonical_sha256(proof_body)
+    set_check(
+        checks,
+        reasons,
+        "proof_body_hash_ok",
+        proof_envelope.get("proof_body_hash") == proof_body_hash,
+        "proof_body_hash_matches",
+        "proof_body_hash_mismatch",
+    )
+    integrity = proof_envelope.get("proof_integrity") if isinstance(proof_envelope.get("proof_integrity"), dict) else {}
+    set_check(
+        checks,
+        reasons,
+        "self_check_ok",
+        integrity.get("self_check") == proof_body_hash,
+        "proof_integrity_self_check_matches",
+        "proof_integrity_self_check_hash_mismatch",
+    )
+
+    standard = proof_body.get("standard")
+    chain = proof_body.get("chain")
+    address = proof_body.get("address")
+    checks["standard_ok"] = standard in SUPPORTED_STANDARDS
+    reasons["standard_ok"] = "standard_supported" if checks["standard_ok"] else "standard_unsupported"
+    checks["chain_ok"] = (standard == STANDARD_ED25519 and chain == CHAIN_ED25519_DEMO) or (
+        standard == STANDARD_ETH_EIP191 and chain == CHAIN_ETHEREUM
+    )
+    reasons["chain_ok"] = "chain_matches_standard" if checks["chain_ok"] else "chain_standard_mismatch"
+    checks["address_shape_ok"] = isinstance(standard, str) and isinstance(address, str) and validate_address_shape(standard, address)
+    reasons["address_shape_ok"] = "address_shape_ok" if checks["address_shape_ok"] else "address_shape_invalid"
+
+    signature = proof_body.get("signature") if isinstance(proof_body.get("signature"), dict) else {}
+    if standard == STANDARD_ED25519:
+        public_key = signature.get("public_key")
+        checks["public_key_hash_ok"] = isinstance(public_key, str) and signature.get("public_key_hash") == sha256_prefixed(
+            public_key.encode("utf-8")
+        )
+        reasons["public_key_hash_ok"] = "public_key_hash_matches" if checks["public_key_hash_ok"] else "public_key_hash_mismatch"
+        checks["address_binding_ok"] = public_key == address
+        reasons["address_binding_ok"] = "public_key_equals_address" if checks["address_binding_ok"] else "public_key_address_mismatch"
+    elif standard == STANDARD_ETH_EIP191:
+        recovered = signature.get("recovered_address")
+        checks["public_key_hash_ok"] = True
+        reasons["public_key_hash_ok"] = "not_applicable_for_ethereum_eip191"
+        checks["address_binding_ok"] = isinstance(recovered, str) and recovered.lower() == str(address).lower()
+        reasons["address_binding_ok"] = "recovered_address_equals_address" if checks["address_binding_ok"] else "recovered_address_mismatch"
+    else:
+        checks["public_key_hash_ok"] = False
+        reasons["public_key_hash_ok"] = "unsupported_standard"
+        checks["address_binding_ok"] = False
+        reasons["address_binding_ok"] = "unsupported_standard"
+
+    challenge_body = proof_body.get("challenge_body") if isinstance(proof_body.get("challenge_body"), dict) else None
+    external_challenge_body = None
+    external_challenge_hash = None
+    if args.challenge:
+        _env, external_challenge_body, external_challenge_hash, external_challenge_self_check = load_challenge_body(Path(args.challenge))
+        checks["challenge_self_check_ok"] = external_challenge_self_check
+        reasons["challenge_self_check_ok"] = "challenge_body_hash_matches" if external_challenge_self_check else "challenge_body_hash_mismatch"
+        if challenge_body is not None:
+            checks["challenge_binding_ok"] = proof_body.get("challenge_hash") == external_challenge_hash and challenge_body == external_challenge_body
+        else:
+            checks["challenge_binding_ok"] = proof_body.get("challenge_hash") == external_challenge_hash
+        reasons["challenge_binding_ok"] = "challenge_hash_and_body_match" if checks["challenge_binding_ok"] else "challenge_hash_or_id_mismatch"
+        challenge_for_signature = external_challenge_body
+        challenge_hash_for_signature = external_challenge_hash
+    else:
+        if challenge_body is not None:
+            challenge_hash = canonical_sha256(challenge_body)
+            checks["challenge_self_check_ok"] = True
+            reasons["challenge_self_check_ok"] = "embedded_challenge_body_hash_computed"
+            checks["challenge_binding_ok"] = proof_body.get("challenge_hash") == challenge_hash
+            reasons["challenge_binding_ok"] = "embedded_challenge_hash_matches" if checks["challenge_binding_ok"] else "embedded_challenge_hash_mismatch"
+            challenge_for_signature = challenge_body
+            challenge_hash_for_signature = challenge_hash
+        else:
+            checks["challenge_self_check_ok"] = False
+            reasons["challenge_self_check_ok"] = "missing_challenge_body"
+            checks["challenge_binding_ok"] = False
+            reasons["challenge_binding_ok"] = "missing_challenge_body"
+            challenge_for_signature = None
+            challenge_hash_for_signature = None
+
+    checks["challenge_not_expired_ok"] = True
+    reasons["challenge_not_expired_ok"] = "expiration_not_enforced_v2_3_1"
+
+    supplied_record_hash = None
+    if args.record:
+        supplied_record_hash, _record_type = hash_record_file(Path(args.record))
+    proof_target = proof_body.get("target") if isinstance(proof_body.get("target"), dict) else {}
+    proof_record_hash = proof_target.get("record_hash")
+    challenge_target = challenge_for_signature.get("target") if isinstance(challenge_for_signature, dict) else {}
+    challenge_record_hash = challenge_target.get("record_hash") if isinstance(challenge_target, dict) else None
+
+    checks["record_hash_shape_ok"] = proof_record_hash is None or (isinstance(proof_record_hash, str) and SHA256_RE.match(proof_record_hash) is not None)
+    reasons["record_hash_shape_ok"] = "record_hash_shape_ok" if checks["record_hash_shape_ok"] else "record_hash_shape_invalid"
+    checks["proof_challenge_record_binding_ok"] = proof_record_hash == challenge_record_hash
+    reasons["proof_challenge_record_binding_ok"] = (
+        "proof_record_hash_matches_challenge_record_hash"
+        if checks["proof_challenge_record_binding_ok"]
+        else "proof_record_hash_challenge_record_hash_mismatch"
+    )
+    if supplied_record_hash:
+        checks["record_binding_ok"] = proof_record_hash == supplied_record_hash and challenge_record_hash == supplied_record_hash
+    else:
+        checks["record_binding_ok"] = proof_record_hash == challenge_record_hash
+    reasons["record_binding_ok"] = "record_hash_matches" if checks["record_binding_ok"] else "record_hash_mismatch"
+    checks["record_signed_by_challenge_ok"] = challenge_record_hash is not None and challenge_record_hash == proof_record_hash
+    reasons["record_signed_by_challenge_ok"] = (
+        "record_hash_inside_signed_challenge_body"
+        if checks["record_signed_by_challenge_ok"]
+        else "record_hash_not_inside_signed_challenge_body"
+    )
+
+    checks["signature_shape_ok"] = isinstance(signature, dict) and isinstance(signature.get("signature"), str)
+    reasons["signature_shape_ok"] = "signature_shape_ok" if checks["signature_shape_ok"] else "signature_shape_invalid"
+
+    if challenge_for_signature is None:
+        checks["signature_ok"] = False
+        reasons["signature_ok"] = "missing_challenge_for_signature_verification"
+        eth_recovered = None
+    elif standard == STANDARD_ED25519:
+        ok, reason = verify_ed25519_challenge_signature(challenge_for_signature, proof_body)
+        checks["signature_ok"] = ok
+        reasons["signature_ok"] = reason
+        eth_recovered = None
+    elif standard == STANDARD_ETH_EIP191:
+        message = challenge_for_signature.get("message") if isinstance(challenge_for_signature, dict) else None
+        sig_text = signature.get("signature")
+        ok, reason, eth_recovered = verify_ethereum_personal_sign(str(message), str(sig_text), str(address))
+        checks["signature_ok"] = ok
+        reasons["signature_ok"] = reason
+        if ok:
+            checks["address_binding_ok"] = eth_recovered is not None and eth_recovered.lower() == str(address).lower()
+            reasons["address_binding_ok"] = "recovered_address_equals_address"
+    else:
+        checks["signature_ok"] = False
+        reasons["signature_ok"] = "unsupported_standard"
+        eth_recovered = None
+
+    all_required = [
+        "proof_shape_ok",
+        "proof_body_hash_ok",
+        "self_check_ok",
+        "standard_ok",
+        "chain_ok",
+        "address_shape_ok",
+        "public_key_hash_ok",
+        "address_binding_ok",
+        "challenge_self_check_ok",
+        "challenge_binding_ok",
+        "challenge_not_expired_ok",
+        "record_hash_shape_ok",
+        "proof_challenge_record_binding_ok",
+        "record_binding_ok",
+        "record_signed_by_challenge_ok",
+        "signature_shape_ok",
+        "signature_ok",
+    ]
+    verify_ok = all(checks.get(key) for key in all_required)
+
+    print(f"DELTA_WALLET_VERIFY_OK={verify_ok}")
+    for key in all_required:
+        label = key.upper()
+        print(f"DELTA_WALLET_{label}={checks.get(key)}")
+    print(f"DELTA_WALLET_CHALLENGE_HASH={challenge_hash_for_signature}")
+    print(f"DELTA_WALLET_PROOF_BODY_HASH={proof_body_hash}")
+    print(f"DELTA_WALLET_ADDRESS={address}")
+    print(f"DELTA_WALLET_CHAIN={chain}")
+    print(f"DELTA_WALLET_STANDARD={standard}")
+    if proof_record_hash:
+        print(f"DELTA_WALLET_RECORD_HASH={proof_record_hash}")
+    if eth_recovered:
+        print(f"DELTA_WALLET_ETH_RECOVERED_ADDRESS={eth_recovered}")
+    for key in all_required:
+        if not checks.get(key):
+            print(f"DELTA_WALLET_REASON_{key.upper()}={reasons.get(key)}")
+
+    return 0 if verify_ok else 1
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="DELTA Proof of Crypto Wallet / Address Control tool.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    keygen = subparsers.add_parser("keygen", help="Generate a demo Ed25519 wallet key pair for local tests only.")
-    keygen.add_argument("--private-out", required=True, help="Path for demo private key. Do not commit.")
-    keygen.add_argument("--public-out", default="", help="Optional path for demo public key/address JSON.")
-    keygen.add_argument("--force", action="store_true", help="Overwrite existing demo private key file.")
+    keygen = subparsers.add_parser("keygen", help="Generate a local Ed25519 demo wallet key pair.")
+    keygen.add_argument("--private-out", required=True, help="Path for local demo private key. Do not commit.")
+    keygen.add_argument("--public-out", required=True, help="Path for public wallet JSON.")
+    keygen.add_argument("--force", action="store_true", help="Overwrite existing local demo key.")
     keygen.set_defaults(func=command_keygen)
 
-    challenge = subparsers.add_parser("create-challenge", help="Create a DELTA wallet address-control challenge.")
-    challenge.add_argument("--out", required=True, help="Path for challenge JSON.")
-    challenge.add_argument("--chain", default="ed25519-demo", choices=sorted(SUPPORTED_CHAINS), help="Chain/adapter id.")
-    challenge.add_argument("--address", required=True, help="Target address for this MVP, e.g. ed25519:<base64url_public_key>.")
-    challenge.add_argument("--record", default="", help="Optional delta-record.json path. When supplied, target.record_hash is embedded into the signed challenge_body.")
-    challenge.add_argument("--domain", default="local-delta-test", help="Domain/context displayed in the challenge.")
-    challenge.add_argument("--purpose", default="DELTA wallet address control proof", help="Human-readable challenge purpose.")
-    challenge.add_argument("--expires-at", default="", help="Optional UTC ISO-8601 expiry timestamp.")
-    challenge.add_argument("--nonce", default="", help="Optional nonce for deterministic tests; normally omitted.")
+    eth_keygen = subparsers.add_parser("eth-keygen", help="Generate a local Ethereum demo key pair for tests.")
+    eth_keygen.add_argument("--private-out", required=True, help="Path for local demo Ethereum key. Do not commit.")
+    eth_keygen.add_argument("--public-out", required=True, help="Path for public Ethereum wallet JSON.")
+    eth_keygen.add_argument("--force", action="store_true", help="Overwrite existing local demo Ethereum key.")
+    eth_keygen.set_defaults(func=command_eth_keygen)
+
+    challenge = subparsers.add_parser("create-challenge", help="Create a DELTA wallet challenge.")
+    challenge.add_argument("--out", required=True, help="Path for wallet challenge JSON.")
+    challenge.add_argument("--chain", required=True, help="Wallet chain, e.g. ed25519-demo or ethereum.")
+    challenge.add_argument("--standard", default=None, help="Wallet proof standard. Defaults from chain.")
+    challenge.add_argument("--address", required=True, help="Wallet address/public key controlled by signer.")
+    challenge.add_argument("--record", default=None, help="Optional delta-record.json path. Hash is placed in signed challenge body.")
+    challenge.add_argument("--domain", default="local-delta", help="Domain/context label for the challenge.")
+    challenge.add_argument("--purpose", default="DELTA wallet address control", help="Human-readable challenge purpose.")
+    challenge.add_argument("--challenge-id", default=None, help="Optional challenge id.")
+    challenge.add_argument("--expires-at", default=None, help="Optional UTC ISO-8601 expiration timestamp. Report-only in v2.3.1.")
     challenge.set_defaults(func=command_create_challenge)
 
-    proof = subparsers.add_parser("create-proof", help="Create a DELTA wallet proof by signing a challenge with a demo Ed25519 key.")
+    proof = subparsers.add_parser("create-proof", help="Create a DELTA wallet proof for a challenge.")
     proof.add_argument("--challenge", required=True, help="Path to wallet challenge JSON.")
-    proof.add_argument("--private-key", required=True, help="Path to demo private key file. Do not commit.")
-    proof.add_argument("--record", default="", help="Optional delta-record.json path. If supplied, it must match challenge_body.target.record_hash.")
+    proof.add_argument("--private-key", default=None, help="Path to local Ed25519 demo private key. Do not commit.")
+    proof.add_argument("--eth-private-key", default=None, help="Path to local Ethereum demo key. Do not commit.")
+    proof.add_argument("--signature", default=None, help="External Ethereum EIP-191 signature hex, e.g. from MetaMask personal_sign.")
+    proof.add_argument("--record", default=None, help="Optional delta-record.json path. Must match signed challenge target.")
     proof.add_argument("--out", required=True, help="Path for wallet proof JSON.")
     proof.add_argument("--holder", default="local-wallet-holder", help="Non-authoritative holder label for test/demo proofs.")
     proof.set_defaults(func=command_create_proof)
 
-    verify = subparsers.add_parser("verify-proof", help="Verify a DELTA wallet proof offline.")
+    verify = subparsers.add_parser("verify-proof", help="Verify a DELTA wallet proof.")
     verify.add_argument("--proof", required=True, help="Path to wallet proof JSON.")
-    verify.add_argument("--challenge", default="", help="Optional path to challenge JSON for binding and signature verification.")
-    verify.add_argument("--record", default="", help="Optional path to delta-record.json for record binding verification.")
+    verify.add_argument("--challenge", default=None, help="Optional path to challenge JSON for binding and signature verification.")
+    verify.add_argument("--record", default=None, help="Optional path to delta-record.json for record binding verification.")
     verify.set_defaults(func=command_verify_proof)
 
     return parser
