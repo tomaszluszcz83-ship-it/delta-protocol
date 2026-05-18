@@ -6,10 +6,16 @@ This sensor creates a machine-generated DELTA sensor record.
 It intentionally does NOT change the DELTA-0 core model. It produces a
 sensor-layer envelope artifact that can later inform the Delta Record RFC.
 
+v1.8.2 adds report-only Proof of Intent policy metadata:
+- intent_required
+- intent_deadline
+- intent_policy_id
+
 Security boundary:
 - this is not yet a full signed DELTA-0 Claim/Attestation/Ledger/Checkpoint bundle
 - this is not a registry, anchoring, or trust graph implementation
 - this is a dirty prototype for learning real sensor requirements
+- intent_policy is signed as part of record_body, but v1.8.2 only reports it; enforcement remains outside the sensor
 """
 
 from __future__ import annotations
@@ -32,7 +38,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from delta_protocol import canonical_json_bytes, load_json_file, sha256_prefixed
 
 
-SENSOR_VERSION = "v1.3.1-dirty"
+SENSOR_VERSION = "v1.8.2-intent-policy"
 RECORD_TYPE = "delta_sensor_record"
 ENVELOPE_TYPE = "delta_sensor_record_envelope"
 SIGNATURE_TYPE = "delta_sensor_record_signature"
@@ -43,12 +49,15 @@ PRIVATE_SEED_PREFIX = "ed25519seed:"
 SIGNATURE_PREFIX = "ed25519sig:"
 
 
+
 def now_utc() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+
 def b64url_no_padding(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).decode("ascii").rstrip("=")
+
 
 
 def b64url_decode_unpadded(value: str, field: str) -> bytes:
@@ -61,8 +70,23 @@ def b64url_decode_unpadded(value: str, field: str) -> bytes:
         raise ValueError(f"{field} is not valid base64url") from exc
 
 
+
+def parse_iso_z(value: str) -> datetime:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("timestamp must be a non-empty string")
+    normalized = value.strip()
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1] + "+00:00"
+    parsed = datetime.fromisoformat(normalized)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+
 def run_command(args: list[str], *, check: bool = False) -> subprocess.CompletedProcess[bytes]:
     return subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=check)
+
 
 
 def git_text(args: list[str]) -> Optional[str]:
@@ -70,6 +94,7 @@ def git_text(args: list[str]) -> Optional[str]:
     if result.returncode != 0:
         return None
     return result.stdout.decode("utf-8", errors="replace").strip()
+
 
 
 def load_github_event() -> dict[str, Any]:
@@ -85,6 +110,7 @@ def load_github_event() -> dict[str, Any]:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return {}
+
 
 
 def resolve_refs() -> dict[str, Optional[str]]:
@@ -122,6 +148,7 @@ def resolve_refs() -> dict[str, Optional[str]]:
     }
 
 
+
 def git_tree_state_hash(ref: Optional[str]) -> tuple[Optional[str], Optional[str]]:
     if not ref:
         return None, "missing ref"
@@ -135,16 +162,20 @@ def git_tree_state_hash(ref: Optional[str]) -> tuple[Optional[str], Optional[str
     return sha256_prefixed(result.stdout), None
 
 
+
 def hash_file(path: Path) -> str:
     return sha256_prefixed(path.read_bytes())
+
 
 
 def hash_text(text: str) -> str:
     return sha256_prefixed(text.encode("utf-8"))
 
 
+
 def canonical_json_file_hash(path: Path) -> str:
     return sha256_prefixed(canonical_json_bytes(load_json_file(path)))
+
 
 
 def write_json(path: Path, value: Any) -> None:
@@ -155,8 +186,10 @@ def write_json(path: Path, value: Any) -> None:
     )
 
 
+
 def write_text(path: Path, value: str) -> None:
     path.write_text(value, encoding="utf-8", newline="\n")
+
 
 
 def resolve_repo_url() -> str:
@@ -168,6 +201,7 @@ def resolve_repo_url() -> str:
 
     origin = git_text(["remote", "get-url", "origin"])
     return origin or "<REPOSITORY_URL>"
+
 
 
 def build_replay_script(
@@ -217,6 +251,7 @@ def build_replay_script(
     return "\n".join(lines) + "\n"
 
 
+
 def load_sensor_private_key() -> Ed25519PrivateKey:
     private_text = os.environ.get("DELTA_SENSOR_PRIVATE_KEY", "").strip()
 
@@ -235,6 +270,7 @@ def load_sensor_private_key() -> Ed25519PrivateKey:
         raise SystemExit("DELTA_SENSOR_PRIVATE_KEY seed must decode to 32 bytes")
 
     return Ed25519PrivateKey.from_private_bytes(seed)
+
 
 
 def sign_record_body(record_body: dict[str, Any]) -> dict[str, Any]:
@@ -274,6 +310,7 @@ def sign_record_body(record_body: dict[str, Any]) -> dict[str, Any]:
     }
 
     return signature
+
 
 
 def verify_record_signature(record_body: dict[str, Any], signature: dict[str, Any]) -> tuple[bool, str]:
@@ -329,6 +366,28 @@ def verify_record_signature(record_body: dict[str, Any], signature: dict[str, An
         return False, str(exc)
 
 
+
+def build_intent_policy(*, required: bool, deadline: str, policy_id: str) -> dict[str, Any]:
+    if deadline:
+        parse_iso_z(deadline)
+    if deadline and not required:
+        raise SystemExit("--intent-deadline requires --intent-required")
+
+    return {
+        "type": "delta_record_intent_policy",
+        "version": "1.0.0",
+        "policy_id": policy_id,
+        "mode": "detached_intent_required" if required else "detached_intent_optional",
+        "status": "declared",
+        "intent_required": bool(required),
+        "intent_deadline": deadline or None,
+        "enforcement": "report_only_v1_8_2",
+        "binding": "intent.target.record_hash must match the SHA-256 hash of the full delta-record.json",
+        "note": "v1.8.2 declares and reports intent policy. It does not enforce intent as the main replay success condition.",
+    }
+
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate a signed dirty DELTA GitHub Actions sensor record.")
     parser.add_argument(
@@ -346,6 +405,21 @@ def main() -> int:
         default=".delta/artifacts",
         help="Directory where sensor artifacts will be written.",
     )
+    parser.add_argument(
+        "--intent-required",
+        action="store_true",
+        help="Declare that this sensor record requires a detached Proof of Intent bundle.",
+    )
+    parser.add_argument(
+        "--intent-deadline",
+        default="",
+        help="Optional UTC ISO-8601 deadline for supplying intent, e.g. 2026-05-19T00:00:00Z. Requires --intent-required.",
+    )
+    parser.add_argument(
+        "--intent-policy-id",
+        default="intent-policy-v1",
+        help="Policy identifier recorded in record_body.intent_policy.",
+    )
     args = parser.parse_args()
 
     method_path = Path(args.method)
@@ -358,6 +432,12 @@ def main() -> int:
 
     if not isinstance(command, list) or not all(isinstance(part, str) for part in command):
         raise SystemExit("measurement method command must be a list of strings")
+
+    intent_policy = build_intent_policy(
+        required=bool(args.intent_required),
+        deadline=str(args.intent_deadline or ""),
+        policy_id=str(args.intent_policy_id or "intent-policy-v1"),
+    )
 
     method_definition_hash = canonical_json_file_hash(method_path)
     schema_hash = canonical_json_file_hash(schema_path)
@@ -466,6 +546,7 @@ def main() -> int:
             "finished_at": measurement_finished_at,
             "stdout_contains_required": stdout_contains,
         },
+        "intent_policy": intent_policy,
         "private_evidence_commitments": [
             {
                 "type": "stdout_log",
@@ -514,6 +595,7 @@ def main() -> int:
             "anchored": False,
             "registry_checked": False,
             "sensor_schema_separate_from_delta0": True,
+            "intent_policy_report_only": True,
             "note": "Dirty sensor prototype. It creates a signed, hash-committed sensor record, not a final DELTA-0 Claim/Attestation/Ledger/Checkpoint bundle.",
         },
     }
@@ -553,6 +635,10 @@ def main() -> int:
         f"- signature_present: `{record_signature is not None}`",
         f"- signature_verification_ok: `{signature_verification_ok}`",
         f"- signature_verification_reason: `{signature_verification_reason}`",
+        f"- intent_required: `{intent_policy.get('intent_required')}`",
+        f"- intent_deadline: `{intent_policy.get('intent_deadline')}`",
+        f"- intent_policy_id: `{intent_policy.get('policy_id')}`",
+        f"- intent_policy_enforcement: `{intent_policy.get('enforcement')}`",
         f"- commit_before: `{commit_before}`",
         f"- commit_after: `{commit_after}`",
         f"- before_state_hash: `{before_state_hash}`",
@@ -578,6 +664,11 @@ def main() -> int:
         "",
         "Replay instructions are designed for a fresh clone in a temporary directory.",
         "",
+        "## Proof of Intent policy",
+        "",
+        "The record_body.intent_policy object is signed as part of the sensor record.",
+        "v1.8.2 reports this policy in delta_replay.py but does not enforce it as the main replay result.",
+        "",
         "## Security boundary",
         "",
         "This is a signed dirty sensor prototype. It does not yet create a full signed DELTA-0 bundle.",
@@ -593,6 +684,10 @@ def main() -> int:
     print("DELTA_SENSOR_SIGNATURE_PRESENT=True")
     print(f"DELTA_SENSOR_SIGNATURE_VERIFICATION_OK={signature_verification_ok}")
     print("DELTA_SENSOR_EXECUTOR_PUBLIC_KEY_PRESENT=True")
+    print(f"DELTA_SENSOR_INTENT_REQUIRED={bool(intent_policy.get('intent_required'))}")
+    print(f"DELTA_SENSOR_INTENT_DEADLINE={intent_policy.get('intent_deadline') or 'null'}")
+    print(f"DELTA_SENSOR_INTENT_POLICY_ID={intent_policy.get('policy_id')}")
+    print(f"DELTA_SENSOR_INTENT_POLICY_ENFORCEMENT={intent_policy.get('enforcement')}")
 
     if not self_check_ok:
         return 2
