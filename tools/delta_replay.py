@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """DELTA replay verifier.
 
-v1.8.1 goal:
+v1.8.2 goal:
 - replay an existing signed DELTA Sensor Record from a fresh clone
 - re-run the declared measurement method
 - compare replay result against the signed record
 - optionally verify a detached Proof of Intent attestation/signature/registry bundle
+- report record-level intent_required / intent_deadline policy without changing replay success
 
 Security boundary:
 - this verifies replay consistency for a signed sensor record
 - it can verify that a separate intent key signed an attestation bound to the record hash
 - it does not create a new signed replay proof yet
+- it reports record intent policy as audit metadata in v1.8.2, but does not enforce it as the main replay result
 - it does not prove legal consent, ticket truth, real-world identity, registry governance, anchoring, or external-world truth
 """
 
@@ -40,6 +42,11 @@ INTENT_STATUS_NOT_REQUIRED = "INTENT_NOT_REQUIRED"
 INTENT_STATUS_MISSING = "INTENT_MISSING"
 INTENT_STATUS_INVALID = "INTENT_INVALID"
 INTENT_STATUS_VERIFIED = "INTENT_VERIFIED"
+RECORD_INTENT_POLICY_STATUS_NOT_DECLARED = "NOT_DECLARED"
+RECORD_INTENT_POLICY_STATUS_DECLARED = "DECLARED"
+RECORD_INTENT_POLICY_STATUS_SATISFIED = "SATISFIED"
+RECORD_INTENT_POLICY_STATUS_MISSING = "MISSING"
+RECORD_INTENT_POLICY_STATUS_INVALID = "INVALID"
 
 
 def b64url_decode_unpadded(value: str, field: str) -> bytes:
@@ -269,35 +276,107 @@ def intent_policy_ok(attestation: dict[str, Any], *, now: _dt.datetime | None = 
     return True, "intent_policy_time_ok"
 
 
-def record_intent_policy_ok(record: dict[str, Any], attestation: dict[str, Any]) -> tuple[bool, str]:
+def extract_record_intent_policy(record: dict[str, Any]) -> dict[str, Any]:
     body = record.get("record_body") if isinstance(record.get("record_body"), dict) else {}
-    candidates = [record, body]
+    raw_policy = body.get("intent_policy") if isinstance(body.get("intent_policy"), dict) else None
 
-    intent_required = None
-    deadline_value = None
-    for candidate in candidates:
-        if not isinstance(candidate, dict):
-            continue
-        if "intent_required" in candidate:
-            intent_required = candidate.get("intent_required")
-        if "intent_deadline" in candidate:
-            deadline_value = candidate.get("intent_deadline")
+    # Backward-compatible fallback for early flat-field experiments.
+    if raw_policy is None and ("intent_required" in body or "intent_deadline" in body or "intent_required" in record or "intent_deadline" in record):
+        raw_policy = {
+            "type": "delta_record_intent_policy",
+            "version": "1.0.0",
+            "policy_id": body.get("intent_policy_id") or record.get("intent_policy_id") or "legacy-flat-intent-policy",
+            "mode": "detached_intent_required",
+            "status": "declared",
+            "intent_required": body.get("intent_required", record.get("intent_required", False)) is True,
+            "intent_deadline": body.get("intent_deadline") or record.get("intent_deadline"),
+            "enforcement": "report_only_v1_8_2",
+            "source": "legacy_flat_fields",
+        }
 
-    if intent_required is None and deadline_value is None:
+    if raw_policy is None:
+        return {
+            "declared": False,
+            "intent_required": False,
+            "intent_deadline": "",
+            "policy_id": "",
+            "mode": "",
+            "status": RECORD_INTENT_POLICY_STATUS_NOT_DECLARED,
+            "deadline_ok": True,
+            "detail": "record_has_no_intent_policy",
+        }
+
+    deadline_value = raw_policy.get("intent_deadline") or ""
+    deadline_ok = True
+    detail = "record_intent_policy_declared"
+    if deadline_value:
+        try:
+            deadline_dt = parse_iso_z(str(deadline_value))
+            now_dt = _dt.datetime.now(_dt.timezone.utc)
+            deadline_ok = deadline_dt is None or now_dt <= deadline_dt
+            detail = "record_intent_deadline_not_expired" if deadline_ok else "record_intent_deadline_expired"
+        except Exception as exc:
+            deadline_ok = False
+            detail = f"record_intent_deadline_parse_error:{type(exc).__name__}"
+
+    return {
+        "declared": True,
+        "type": raw_policy.get("type") or "delta_record_intent_policy",
+        "version": raw_policy.get("version") or "1.0.0",
+        "intent_required": raw_policy.get("intent_required") is True,
+        "intent_deadline": str(deadline_value) if deadline_value else "",
+        "policy_id": str(raw_policy.get("policy_id") or ""),
+        "mode": str(raw_policy.get("mode") or ""),
+        "status": str(raw_policy.get("status") or RECORD_INTENT_POLICY_STATUS_DECLARED),
+        "enforcement": str(raw_policy.get("enforcement") or "report_only_v1_8_2"),
+        "deadline_ok": bool(deadline_ok),
+        "detail": detail,
+    }
+
+
+def evaluate_record_intent_policy(record: dict[str, Any], intent_result: dict[str, Any]) -> dict[str, Any]:
+    policy = extract_record_intent_policy(record)
+    if not policy.get("declared"):
+        policy["policy_status"] = RECORD_INTENT_POLICY_STATUS_NOT_DECLARED
+        return policy
+
+    if not policy.get("intent_required"):
+        policy["policy_status"] = RECORD_INTENT_POLICY_STATUS_DECLARED
+        policy["detail"] = "record_declares_intent_not_required"
+        return policy
+
+    intent_status = intent_result.get("status")
+    if intent_status == INTENT_STATUS_VERIFIED:
+        policy["policy_status"] = RECORD_INTENT_POLICY_STATUS_SATISFIED
+        policy["detail"] = "record_intent_required_and_verified"
+    elif intent_status == INTENT_STATUS_INVALID:
+        policy["policy_status"] = RECORD_INTENT_POLICY_STATUS_INVALID
+        policy["detail"] = "record_intent_required_but_intent_invalid"
+    else:
+        policy["policy_status"] = RECORD_INTENT_POLICY_STATUS_MISSING
+        policy["detail"] = "record_intent_required_but_not_verified"
+    return policy
+
+
+def record_intent_policy_ok(record: dict[str, Any], attestation: dict[str, Any]) -> tuple[bool, str]:
+    policy = extract_record_intent_policy(record)
+    if not policy.get("declared"):
         return True, "record_has_no_intent_policy_fields_v1_8_detached_mode"
-    if intent_required is not True:
-        return False, "record_intent_required_is_not_true"
+    if not policy.get("intent_required"):
+        return True, "record_intent_policy_declares_intent_not_required"
+
+    deadline_value = policy.get("intent_deadline")
     if deadline_value:
         created_dt = parse_iso_z(attestation.get("created_at"))
-        deadline_dt = parse_iso_z(deadline_value)
+        deadline_dt = parse_iso_z(str(deadline_value))
         if created_dt and deadline_dt and created_dt > deadline_dt:
             return False, "intent_created_after_record_intent_deadline"
+
     return True, "record_intent_policy_ok"
 
 
 def record_declares_intent_required(record: dict[str, Any]) -> bool:
-    body = record.get("record_body") if isinstance(record.get("record_body"), dict) else {}
-    return record.get("intent_required") is True or body.get("intent_required") is True
+    return bool(extract_record_intent_policy(record).get("intent_required"))
 
 
 def verify_intent_bundle(
@@ -575,6 +654,20 @@ def write_report(path: Path, result: dict[str, Any]) -> None:
             lines.append(f"| `{key}` | `{bool(value)}` | `{intent_reasons.get(reason_key, '')}` |")
         lines.append("")
 
+    record_policy = result.get("record_intent_policy") or {}
+    lines.append("## Record intent policy")
+    lines.append("")
+    lines.append(f"- Status: `{record_policy.get('policy_status', RECORD_INTENT_POLICY_STATUS_NOT_DECLARED)}`")
+    lines.append(f"- Declared: `{bool(record_policy.get('declared'))}`")
+    lines.append(f"- Intent required: `{bool(record_policy.get('intent_required'))}`")
+    lines.append(f"- Intent deadline: `{record_policy.get('intent_deadline') or 'null'}`")
+    lines.append(f"- Policy id: `{record_policy.get('policy_id') or 'null'}`")
+    lines.append(f"- Mode: `{record_policy.get('mode') or 'null'}`")
+    lines.append(f"- Enforcement: `{record_policy.get('enforcement') or 'report_only_v1_8_2'}`")
+    lines.append(f"- Deadline OK at replay time: `{bool(record_policy.get('deadline_ok', True))}`")
+    lines.append(f"- Detail: `{record_policy.get('detail', '')}`")
+    lines.append("")
+
     lines.append("## Checks")
     lines.append("")
     lines.append("| Check | Result | Detail |")
@@ -615,6 +708,7 @@ def write_report(path: Path, result: dict[str, Any]) -> None:
     lines.append("It checks whether the signed sensor record can be replayed from a fresh clone and whether the declared measurement result matches.")
     lines.append("")
     lines.append("When intent inputs are supplied, it also checks whether a detached Proof of Intent attestation is signed by a registered intent key and bound to this exact record hash.")
+    lines.append("Record intent policy is reported as audit metadata in v1.8.2 and does not change the main replay result.")
     lines.append("")
     lines.append("Proof of Intent does not prove legal consent, ticket truth, MFA truth, real-world identity, registry governance, anchoring, or external-world truth.")
     lines.append("")
@@ -657,6 +751,7 @@ def main() -> int:
         signature_path=Path(args.intent_signature).resolve() if args.intent_signature else None,
         registry_path=Path(args.intent_registry).resolve() if args.intent_registry else None,
     )
+    record_policy_result = evaluate_record_intent_policy(record, intent_result)
 
     repo_url = (
         (body.get("replay_instructions") or {}).get("repository_url")
@@ -757,6 +852,7 @@ def main() -> int:
             "return_code": measurement.returncode,
             "checks": checks,
             "intent": intent_result,
+            "record_intent_policy": record_policy_result,
             "stdout_tail": measurement.stdout[-4000:],
             "stderr_tail": measurement.stderr[-4000:],
         }
@@ -777,6 +873,11 @@ def main() -> int:
         print(f"DELTA_REPLAY_INTENT_SIGNATURE_OK={bool((intent_result.get('checks') or {}).get('signature_ok'))}")
         print(f"DELTA_REPLAY_INTENT_RECORD_BINDING_OK={bool((intent_result.get('checks') or {}).get('record_binding_ok'))}")
         print(f"DELTA_REPLAY_INTENT_REGISTRY_OK={bool((intent_result.get('checks') or {}).get('registry_ok'))}")
+        print(f"DELTA_REPLAY_RECORD_INTENT_REQUIRED={bool(record_policy_result.get('intent_required'))}")
+        print(f"DELTA_REPLAY_RECORD_INTENT_DEADLINE={record_policy_result.get('intent_deadline') or 'null'}")
+        print(f"DELTA_REPLAY_RECORD_INTENT_POLICY_ID={record_policy_result.get('policy_id') or 'null'}")
+        print(f"DELTA_REPLAY_RECORD_INTENT_POLICY_STATUS={record_policy_result.get('policy_status', RECORD_INTENT_POLICY_STATUS_NOT_DECLARED)}")
+        print(f"DELTA_REPLAY_RECORD_INTENT_DEADLINE_OK={bool(record_policy_result.get('deadline_ok', True))}")
         if intent_result.get("record_hash"):
             print(f"DELTA_REPLAY_INTENT_RECORD_HASH={intent_result['record_hash']}")
         if intent_result.get("attestation_hash"):
