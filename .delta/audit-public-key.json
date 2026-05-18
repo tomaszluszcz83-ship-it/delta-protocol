@@ -1,0 +1,13 @@
+{
+  "alg": "X25519",
+  "created_at": "2026-05-18T10:03:00Z",
+  "id": "audit-key-local-v1",
+  "owner": "local-auditor",
+  "protocol": "DELTA-0",
+  "public_key": "x25519:TC0WDBbDXPOFx_FZDcgf8ume_Id2Bl0sQJ5RlrAuBVs",
+  "public_key_hash": "sha256:953a49ff2d44329b7f86e9339ff9200ba28c74c9660f57c00201321b80fe2dac",
+  "role": "auditor",
+  "security_boundary": "Public audit encryption key. Safe to commit. Private audit key must never be committed or pasted into chat.",
+  "type": "delta_audit_public_key",
+  "version": "1.0.0"
+}
