@@ -26,3 +26,17 @@ export {
   loadSchemas,
   validateJsonWithSchema
 } from "./schemaVerifier.js";
+
+export {
+  DeltaEd25519VerifierError,
+  decodeBytes,
+  encodeEd25519Hex,
+  publicKeyHash,
+  rawEd25519PublicKeyToSpkiDer,
+  verifyEd25519Signature
+} from "./ed25519Verifier.js";
+
+export {
+  computeSignedRecordHash,
+  verifySignedRecord
+} from "./signedRecordVerifier.js";
