@@ -2,8 +2,13 @@ import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { canonicalizeJsonValue, parseStrictJson, type JsonObject, type JsonValue } from "./canonicalJson.js";
 import { decodeBytes, verifyEd25519Signature } from "./ed25519Verifier.js";
+import {
+  verifyIntentRegistryBinding,
+  type IntentRegistryVerificationResult,
+  type IntentRegistryVerificationStatus
+} from "./intentRegistryVerifier.js";
 
-export const INTENT_VERIFIER_PROFILE = "delta_typescript_intent_verifier_mvp_v2_12_1";
+export const INTENT_VERIFIER_PROFILE = "delta_typescript_intent_verifier_mvp_v2_12_2";
 
 export type RecordHashBindingMethod = "file_sha256" | "canonical_json_sha256" | null;
 export type IntentSignatureVerificationStatus = "NOT_PROVIDED" | "VERIFIED" | "INVALID";
@@ -14,6 +19,7 @@ export interface IntentVerificationResult {
   recordPath: string;
   intentPath: string;
   signaturePath: string | null;
+  registryPath: string | null;
   intentFileOk: boolean;
   recordFileOk: boolean;
   declaredRecordHash: string | null;
@@ -34,7 +40,12 @@ export interface IntentVerificationResult {
   publicKeyHashOk: boolean | null;
   signatureShapeOk: boolean | null;
   signatureOk: boolean | null;
+  signerLabel: string | null;
+  signerPublicKey: string | null;
+  signerPublicKeyHash: string | null;
   signatureVerificationStatus: IntentSignatureVerificationStatus;
+  registryVerificationStatus: IntentRegistryVerificationStatus;
+  registryResult: IntentRegistryVerificationResult | null;
   errors: string[];
   warnings: string[];
 }
@@ -147,6 +158,9 @@ function verifyDetachedIntentSignature(
   publicKeyHashOk: boolean | null;
   signatureShapeOk: boolean;
   signatureOk: boolean;
+  signerLabel: string | null;
+  signerPublicKey: string | null;
+  signerPublicKeyHash: string | null;
 } {
   let signatureFileOk = false;
   let sigJson: JsonObject | null = null;
@@ -228,19 +242,20 @@ function verifyDetachedIntentSignature(
 
   let publicKeyBytes: Uint8Array | null = null;
   let publicKeyHashOk: boolean | null = null;
+  let signerPublicKeyHash: string | null = null;
 
   if (!publicKeyValue) {
     errors.push("intent_signature_public_key_missing");
   } else {
     try {
       publicKeyBytes = decodeBytes(publicKeyValue);
-      const computedPublicKeyHash = publicKeyTextHash(publicKeyValue);
+      signerPublicKeyHash = publicKeyTextHash(publicKeyValue);
 
       if (declaredPublicKeyHashRaw) {
         const declaredPublicKeyHash = normalizeHash(declaredPublicKeyHashRaw);
-        publicKeyHashOk = declaredPublicKeyHash === computedPublicKeyHash;
+        publicKeyHashOk = declaredPublicKeyHash === signerPublicKeyHash;
         if (!publicKeyHashOk) {
-          errors.push(`intent_signature_public_key_hash_mismatch:declared=${declaredPublicKeyHash}:computed=${computedPublicKeyHash}`);
+          errors.push(`intent_signature_public_key_hash_mismatch:declared=${declaredPublicKeyHash}:computed=${signerPublicKeyHash}`);
         }
       } else {
         warnings.push("intent_signature_public_key_hash_not_declared");
@@ -291,14 +306,18 @@ function verifyDetachedIntentSignature(
     signatureBodyHashOk,
     publicKeyHashOk,
     signatureShapeOk,
-    signatureOk
+    signatureOk,
+    signerLabel: getString(bodySigner, "label") ?? getString(signatureBlock, "signer") ?? null,
+    signerPublicKey: publicKeyValue,
+    signerPublicKeyHash
   };
 }
 
 export function verifyIntentBinding(
   recordPath: string,
   intentPath: string,
-  signaturePath?: string
+  signaturePath?: string,
+  registryPath?: string
 ): IntentVerificationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -399,7 +418,10 @@ export function verifyIntentBinding(
   let publicKeyHashOk: boolean | null = null;
   let signatureShapeOk: boolean | null = null;
   let signatureOk: boolean | null = null;
-  let signatureVerificationStatus: IntentSignatureVerificationStatus = "NOT_PROVIDED";
+  let signerLabel: string | null = null;
+  let signerPublicKey: string | null = null;
+  let signerPublicKeyHash: string | null = null;
+  let signatureVerificationStatus: "NOT_PROVIDED" | "VERIFIED" | "INVALID" = "NOT_PROVIDED";
 
   if (signaturePath) {
     const sig = verifyDetachedIntentSignature(
@@ -419,6 +441,9 @@ export function verifyIntentBinding(
     publicKeyHashOk = sig.publicKeyHashOk;
     signatureShapeOk = sig.signatureShapeOk;
     signatureOk = sig.signatureOk;
+    signerLabel = sig.signerLabel;
+    signerPublicKey = sig.signerPublicKey;
+    signerPublicKeyHash = sig.signerPublicKeyHash;
 
     signatureVerificationStatus =
       sig.signatureFileOk &&
@@ -433,6 +458,32 @@ export function verifyIntentBinding(
     warnings.push("intent_detached_signature_not_provided");
   }
 
+  let registryResult: IntentRegistryVerificationResult | null = null;
+  let registryVerificationStatus: IntentRegistryVerificationStatus = "NOT_PROVIDED";
+
+  if (registryPath) {
+    if (!signaturePath) {
+      errors.push("intent_registry_requires_detached_signature");
+      registryVerificationStatus = "INVALID";
+    } else {
+      registryResult = verifyIntentRegistryBinding({
+        registryPath,
+        signerLabel,
+        signerPublicKey,
+        signerPublicKeyHash
+      });
+
+      registryVerificationStatus = registryResult.registryVerificationStatus;
+
+      for (const registryError of registryResult.errors) {
+        errors.push(`intent_registry:${registryError}`);
+      }
+      for (const registryWarning of registryResult.warnings) {
+        warnings.push(`intent_registry:${registryWarning}`);
+      }
+    }
+  }
+
   const signatureRequiredOk =
     !signaturePath ||
     (
@@ -444,7 +495,11 @@ export function verifyIntentBinding(
       publicKeyHashOk !== false
     );
 
-  const ok = intentFileOk && recordFileOk && recordHashBindingOk && signatureRequiredOk;
+  const registryRequiredOk =
+    !registryPath ||
+    registryVerificationStatus === "VERIFIED";
+
+  const ok = intentFileOk && recordFileOk && recordHashBindingOk && signatureRequiredOk && registryRequiredOk;
 
   return {
     ok,
@@ -452,6 +507,7 @@ export function verifyIntentBinding(
     recordPath,
     intentPath,
     signaturePath: signaturePath ?? null,
+    registryPath: registryPath ?? null,
     intentFileOk,
     recordFileOk,
     declaredRecordHash,
@@ -472,7 +528,12 @@ export function verifyIntentBinding(
     publicKeyHashOk,
     signatureShapeOk,
     signatureOk,
+    signerLabel,
+    signerPublicKey,
+    signerPublicKeyHash,
     signatureVerificationStatus,
+    registryVerificationStatus,
+    registryResult,
     errors,
     warnings
   };

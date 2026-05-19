@@ -58,6 +58,12 @@ export {
 } from "./signedBundleVerifier.js";
 
 export {
+  INTENT_REGISTRY_PROFILE,
+  DeltaIntentRegistryVerifierError,
+  verifyIntentRegistryBinding
+} from "./intentRegistryVerifier.js";
+
+export {
   INTENT_VERIFIER_PROFILE,
   DeltaIntentVerifierError,
   computeIntentCanonicalHashFromObject,
