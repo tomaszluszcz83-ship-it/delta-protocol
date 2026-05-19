@@ -30,10 +30,14 @@ const recordPath = join(outDir, "delta-record.json");
 const intentPath = join(outDir, "intent-attestation.json");
 const signaturePath = join(outDir, "intent-signature.json");
 const registryPath = join(outDir, "intent-registry.json");
+const policyPath = join(outDir, "intent-policy.json");
+
+const policyId = "typescript-intent-policy-v2.12.3";
+const intentDeadline = "2999-12-31T23:59:59Z";
 
 const record = {
   before_state: { demo: "before" },
-  action: { type: "typescript-intent-registry-binding-test" },
+  action: { type: "typescript-intent-policy-deadline-test" },
   after_state: { demo: "after" },
   evidence: { test: true },
   verification: { status: "demo" }
@@ -45,15 +49,28 @@ writeFileSync(recordPath, recordText, "utf-8");
 const recordHash = sha256Prefixed(Buffer.from(recordText, "utf-8"));
 
 const intent: JsonObject = {
-  profile: "delta_intent_attestation_test_v2_12_2",
+  profile: "delta_intent_attestation_test_v2_12_3",
   status: "unsigned_draft",
-  purpose: "TypeScript intent registry public key binding test",
+  purpose: "TypeScript intent policy and deadline verification test",
   record_hash: recordHash,
-  security_boundary: "record_hash_binding_signature_and_registry_public_key_binding_only_not_legal_approval"
+  policy_id: policyId,
+  intent_deadline: intentDeadline,
+  security_boundary: "record_hash_binding_signature_registry_and_policy_deadline_only_not_legal_approval"
 };
 
 const intentText = `${JSON.stringify(intent, null, 2)}\n`;
 writeFileSync(intentPath, intentText, "utf-8");
+
+const policy = {
+  profile: "delta_intent_policy_test_v2_12_3",
+  policy_id: policyId,
+  deadline: intentDeadline,
+  status: "active",
+  requirement: "demo intent must be signed by active registry key before deadline",
+  security_boundary: "local_policy_fixture_only_not_legal_compliance"
+};
+
+writeFileSync(policyPath, `${JSON.stringify(policy, null, 2)}\n`, "utf-8");
 
 const intentHash = sha256Prefixed(canonicalizeJsonValue(intent as JsonValue));
 
@@ -66,7 +83,7 @@ const publicKeyHash = sha256Prefixed(publicKeyText);
 const signerLabel = "typescript-local-demo-signer";
 
 const registry = {
-  profile: "delta_intent_registry_test_v2_12_2",
+  profile: "delta_intent_registry_test_v2_12_3",
   entries: [
     {
       label: signerLabel,
@@ -83,7 +100,7 @@ writeFileSync(registryPath, `${JSON.stringify(registry, null, 2)}\n`, "utf-8");
 
 const signatureBody: JsonObject = {
   type: "delta_intent_signature_body",
-  signature_profile: "delta_intent_ed25519_detached_v2_12_2",
+  signature_profile: "delta_intent_ed25519_detached_v2_12_3",
   intent: {
     hash_alg: "sha256",
     intent_hash: intentHash,
@@ -94,6 +111,11 @@ const signatureBody: JsonObject = {
     record_hash: recordHash,
     path_hint: recordPath
   },
+  policy: {
+    policy_id: policyId,
+    intent_deadline: intentDeadline,
+    path_hint: policyPath
+  },
   signer: {
     label: signerLabel,
     public_key: publicKeyText,
@@ -102,7 +124,7 @@ const signatureBody: JsonObject = {
   security_boundary: {
     does_not_prove_legal_identity: true,
     does_not_prove_signer_authority: true,
-    does_not_prove_policy_compliance: true,
+    does_not_prove_policy_compliance_beyond_local_policy_file: true,
     does_not_replace_registry_trust: true
   }
 };
@@ -113,7 +135,7 @@ const signatureBytes = sign(null, Buffer.from(signatureBodyCanonical, "utf-8"), 
 
 const signatureObject = {
   type: "delta_intent_detached_signature",
-  signature_profile: "delta_intent_ed25519_detached_v2_12_2",
+  signature_profile: "delta_intent_ed25519_detached_v2_12_3",
   signature_body_hash: signatureBodyHash,
   signature_body: signatureBody,
   signature: {
@@ -133,7 +155,10 @@ console.log(`DELTA_TS_SIGNED_INTENT_RECORD=${recordPath}`);
 console.log(`DELTA_TS_SIGNED_INTENT_ATTESTATION=${intentPath}`);
 console.log(`DELTA_TS_SIGNED_INTENT_SIGNATURE=${signaturePath}`);
 console.log(`DELTA_TS_SIGNED_INTENT_REGISTRY=${registryPath}`);
+console.log(`DELTA_TS_SIGNED_INTENT_POLICY=${policyPath}`);
 console.log(`DELTA_TS_SIGNED_INTENT_RECORD_HASH=${recordHash}`);
 console.log(`DELTA_TS_SIGNED_INTENT_INTENT_HASH=${intentHash}`);
+console.log(`DELTA_TS_SIGNED_INTENT_POLICY_ID=${policyId}`);
+console.log(`DELTA_TS_SIGNED_INTENT_DEADLINE=${intentDeadline}`);
 console.log(`DELTA_TS_SIGNED_INTENT_SIGNATURE_BODY_HASH=${signatureBodyHash}`);
 console.log(`DELTA_TS_SIGNED_INTENT_PUBLIC_KEY_HASH=${publicKeyHash}`);
