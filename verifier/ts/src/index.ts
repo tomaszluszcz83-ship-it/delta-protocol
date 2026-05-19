@@ -60,6 +60,7 @@ export {
 export {
   INTENT_VERIFIER_PROFILE,
   DeltaIntentVerifierError,
+  computeIntentCanonicalHashFromObject,
   computeRecordCanonicalHash,
   computeRecordFileHash,
   verifyIntentBinding
