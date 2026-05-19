@@ -56,3 +56,11 @@ export {
   DeltaSignedBundleVerifierError,
   verifySignedBundle
 } from "./signedBundleVerifier.js";
+
+export {
+  INTENT_VERIFIER_PROFILE,
+  DeltaIntentVerifierError,
+  computeRecordCanonicalHash,
+  computeRecordFileHash,
+  verifyIntentBinding
+} from "./intentVerifier.js";

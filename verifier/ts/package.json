@@ -1,9 +1,9 @@
 {
   "name": "@delta-protocol/typescript-verifier",
-  "version": "2.10.2",
+  "version": "2.12.0",
   "private": true,
   "type": "module",
-  "description": "Experimental DELTA TypeScript verifier with machine-readable CLI JSON output",
+  "description": "Experimental DELTA TypeScript verifier with Proof of Intent verification MVP",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "verify-vectors": "tsc -p tsconfig.json && node dist/scripts/verify-vectors.js ../../tests/vectors/canonical-json/vectors.json",
@@ -17,6 +17,8 @@
     "verify-signed-record-json": "tsc -p tsconfig.json && node dist/scripts/verify-signed-record-json.js",
     "verify-bundle-json": "tsc -p tsconfig.json && node dist/scripts/verify-bundle-json.js",
     "verify-signed-bundle-json": "tsc -p tsconfig.json && node dist/scripts/verify-signed-bundle-json.js",
+    "verify-intent": "tsc -p tsconfig.json && node dist/scripts/verify-intent.js",
+    "verify-intent-json": "tsc -p tsconfig.json && node dist/scripts/verify-intent-json.js",
     "test": "npm run verify-vectors && npm run verify-schemas"
   },
   "dependencies": {
