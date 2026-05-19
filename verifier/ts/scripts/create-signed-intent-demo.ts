@@ -1,5 +1,5 @@
 import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { canonicalizeJsonValue, type JsonObject, type JsonValue } from "../src/canonicalJson.js";
 
@@ -29,10 +29,11 @@ mkdirSync(outDir, { recursive: true });
 const recordPath = join(outDir, "delta-record.json");
 const intentPath = join(outDir, "intent-attestation.json");
 const signaturePath = join(outDir, "intent-signature.json");
+const registryPath = join(outDir, "intent-registry.json");
 
 const record = {
   before_state: { demo: "before" },
-  action: { type: "typescript-detached-intent-signature-test" },
+  action: { type: "typescript-intent-registry-binding-test" },
   after_state: { demo: "after" },
   evidence: { test: true },
   verification: { status: "demo" }
@@ -44,11 +45,11 @@ writeFileSync(recordPath, recordText, "utf-8");
 const recordHash = sha256Prefixed(Buffer.from(recordText, "utf-8"));
 
 const intent: JsonObject = {
-  profile: "delta_intent_attestation_test_v2_12_1",
+  profile: "delta_intent_attestation_test_v2_12_2",
   status: "unsigned_draft",
-  purpose: "TypeScript detached intent signature verification test",
+  purpose: "TypeScript intent registry public key binding test",
   record_hash: recordHash,
-  security_boundary: "record_hash_binding_and_detached_signature_only_not_legal_approval"
+  security_boundary: "record_hash_binding_signature_and_registry_public_key_binding_only_not_legal_approval"
 };
 
 const intentText = `${JSON.stringify(intent, null, 2)}\n`;
@@ -62,10 +63,27 @@ const rawPublicKey = publicKeyDer.subarray(publicKeyDer.length - 32);
 
 const publicKeyText = `ed25519:${base64url(rawPublicKey)}`;
 const publicKeyHash = sha256Prefixed(publicKeyText);
+const signerLabel = "typescript-local-demo-signer";
+
+const registry = {
+  profile: "delta_intent_registry_test_v2_12_2",
+  entries: [
+    {
+      label: signerLabel,
+      public_key: publicKeyText,
+      public_key_hash: publicKeyHash,
+      role: "tester",
+      status: "active"
+    }
+  ],
+  security_boundary: "registry_fixture_only_not_legal_identity_or_authority"
+};
+
+writeFileSync(registryPath, `${JSON.stringify(registry, null, 2)}\n`, "utf-8");
 
 const signatureBody: JsonObject = {
   type: "delta_intent_signature_body",
-  signature_profile: "delta_intent_ed25519_detached_v2_12_1",
+  signature_profile: "delta_intent_ed25519_detached_v2_12_2",
   intent: {
     hash_alg: "sha256",
     intent_hash: intentHash,
@@ -77,7 +95,7 @@ const signatureBody: JsonObject = {
     path_hint: recordPath
   },
   signer: {
-    label: "typescript-local-demo-signer",
+    label: signerLabel,
     public_key: publicKeyText,
     public_key_hash: publicKeyHash
   },
@@ -95,7 +113,7 @@ const signatureBytes = sign(null, Buffer.from(signatureBodyCanonical, "utf-8"), 
 
 const signatureObject = {
   type: "delta_intent_detached_signature",
-  signature_profile: "delta_intent_ed25519_detached_v2_12_1",
+  signature_profile: "delta_intent_ed25519_detached_v2_12_2",
   signature_body_hash: signatureBodyHash,
   signature_body: signatureBody,
   signature: {
@@ -114,6 +132,7 @@ console.log("DELTA_TS_SIGNED_INTENT_DEMO_CREATE_OK=True");
 console.log(`DELTA_TS_SIGNED_INTENT_RECORD=${recordPath}`);
 console.log(`DELTA_TS_SIGNED_INTENT_ATTESTATION=${intentPath}`);
 console.log(`DELTA_TS_SIGNED_INTENT_SIGNATURE=${signaturePath}`);
+console.log(`DELTA_TS_SIGNED_INTENT_REGISTRY=${registryPath}`);
 console.log(`DELTA_TS_SIGNED_INTENT_RECORD_HASH=${recordHash}`);
 console.log(`DELTA_TS_SIGNED_INTENT_INTENT_HASH=${intentHash}`);
 console.log(`DELTA_TS_SIGNED_INTENT_SIGNATURE_BODY_HASH=${signatureBodyHash}`);

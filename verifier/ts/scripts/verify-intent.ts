@@ -9,13 +9,14 @@ function argValue(flag: string): string | null {
 const record = argValue("--record") ?? process.argv[2] ?? null;
 const intent = argValue("--intent") ?? process.argv[3] ?? null;
 const signature = argValue("--signature");
+const registry = argValue("--registry");
 
 if (!record || !intent) {
-  console.error("usage: npm run verify-intent -- --record path/to/delta-record.json --intent path/to/intent-attestation.json [--signature path/to/intent-signature.json]");
+  console.error("usage: npm run verify-intent -- --record path/to/delta-record.json --intent path/to/intent-attestation.json [--signature path/to/intent-signature.json] [--registry path/to/intent-registry.json]");
   process.exit(2);
 }
 
-const result = verifyIntentBinding(record, intent, signature ?? undefined);
+const result = verifyIntentBinding(record, intent, signature ?? undefined, registry ?? undefined);
 
 console.log(`DELTA_TS_INTENT_VERIFY_OK=${result.ok ? "True" : "False"}`);
 console.log(`DELTA_TS_INTENT_PROFILE=${result.profile}`);
@@ -24,6 +25,10 @@ console.log(`DELTA_TS_INTENT_ATTESTATION=${result.intentPath}`);
 
 if (result.signaturePath) {
   console.log(`DELTA_TS_INTENT_SIGNATURE=${result.signaturePath}`);
+}
+
+if (result.registryPath) {
+  console.log(`DELTA_TS_INTENT_REGISTRY=${result.registryPath}`);
 }
 
 console.log(`DELTA_TS_INTENT_FILE_OK=${result.intentFileOk ? "True" : "False"}`);
@@ -59,6 +64,7 @@ if (result.intentProfile) {
 }
 
 console.log(`DELTA_TS_INTENT_SIGNATURE_VERIFICATION_STATUS=${result.signatureVerificationStatus}`);
+console.log(`DELTA_TS_INTENT_REGISTRY_VERIFICATION_STATUS=${result.registryVerificationStatus}`);
 
 if (result.signatureFileOk !== null) {
   console.log(`DELTA_TS_INTENT_SIGNATURE_FILE_OK=${result.signatureFileOk ? "True" : "False"}`);
@@ -82,6 +88,23 @@ if (result.signatureShapeOk !== null) {
 
 if (result.signatureOk !== null) {
   console.log(`DELTA_TS_INTENT_SIGNATURE_OK=${result.signatureOk ? "True" : "False"}`);
+}
+
+if (result.registryResult) {
+  console.log(`DELTA_TS_INTENT_REGISTRY_FILE_OK=${result.registryResult.registryFileOk ? "True" : "False"}`);
+  console.log(`DELTA_TS_INTENT_REGISTRY_ENTRY_FOUND=${result.registryResult.registryEntryFound ? "True" : "False"}`);
+
+  if (result.registryResult.registryPublicKeyHashOk !== null) {
+    console.log(`DELTA_TS_INTENT_REGISTRY_PUBLIC_KEY_HASH_OK=${result.registryResult.registryPublicKeyHashOk ? "True" : "False"}`);
+  }
+
+  if (result.registryResult.registryPublicKeyOk !== null) {
+    console.log(`DELTA_TS_INTENT_REGISTRY_PUBLIC_KEY_OK=${result.registryResult.registryPublicKeyOk ? "True" : "False"}`);
+  }
+
+  if (result.registryResult.registryStatusOk !== null) {
+    console.log(`DELTA_TS_INTENT_REGISTRY_STATUS_OK=${result.registryResult.registryStatusOk ? "True" : "False"}`);
+  }
 }
 
 for (const warning of result.warnings) {
