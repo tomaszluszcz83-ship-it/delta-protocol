@@ -1,26 +1,40 @@
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { canonicalizeJsonValue, parseStrictJson, type JsonObject, type JsonValue } from "./canonicalJson.js";
+import { decodeBytes, verifyEd25519Signature } from "./ed25519Verifier.js";
 
-export const INTENT_VERIFIER_PROFILE = "delta_typescript_intent_verifier_mvp_v2_12_0";
+export const INTENT_VERIFIER_PROFILE = "delta_typescript_intent_verifier_mvp_v2_12_1";
+
+export type RecordHashBindingMethod = "file_sha256" | "canonical_json_sha256" | null;
+export type IntentSignatureVerificationStatus = "NOT_PROVIDED" | "VERIFIED" | "INVALID";
 
 export interface IntentVerificationResult {
   ok: boolean;
   profile: string;
   recordPath: string;
   intentPath: string;
+  signaturePath: string | null;
   intentFileOk: boolean;
   recordFileOk: boolean;
   declaredRecordHash: string | null;
   computedRecordFileHash: string | null;
   computedRecordCanonicalHash: string | null;
   recordHashBindingOk: boolean;
-  recordHashBindingMethod: "file_sha256" | "canonical_json_sha256" | null;
+  recordHashBindingMethod: RecordHashBindingMethod;
   intentStatus: string | null;
   intentProfile: string | null;
   intentPurpose: string | null;
-  signaturePresent: boolean;
-  signatureVerificationStatus: "NOT_IMPLEMENTED" | "NOT_PRESENT";
+  computedIntentCanonicalHash: string | null;
+  signatureFileOk: boolean | null;
+  declaredIntentHash: string | null;
+  intentHashBindingOk: boolean | null;
+  declaredSignatureBodyHash: string | null;
+  computedSignatureBodyHash: string | null;
+  signatureBodyHashOk: boolean | null;
+  publicKeyHashOk: boolean | null;
+  signatureShapeOk: boolean | null;
+  signatureOk: boolean | null;
+  signatureVerificationStatus: IntentSignatureVerificationStatus;
   errors: string[];
   warnings: string[];
 }
@@ -86,27 +100,14 @@ function findStringRecursive(value: unknown, names: string[], maxDepth = 8): str
   return null;
 }
 
-function hasSignatureLikeField(value: unknown, maxDepth = 8): boolean {
-  if (maxDepth < 0 || !isObject(value)) return false;
+function publicKeyTextHash(publicKeyText: string): string {
+  return sha256PrefixedBytes(publicKeyText);
+}
 
-  for (const [key, nested] of Object.entries(value)) {
-    const lower = key.toLowerCase();
-    if (
-      lower === "signature" ||
-      lower === "intent_signature" ||
-      lower === "detached_signature" ||
-      lower === "ed25519_signature"
-    ) {
-      if (typeof nested === "string" && nested.length > 0) return true;
-      if (isObject(nested)) return true;
-    }
-
-    if (isObject(nested) && hasSignatureLikeField(nested, maxDepth - 1)) {
-      return true;
-    }
-  }
-
-  return false;
+function signatureLooksHexOrBase64(value: string): boolean {
+  const raw = value.includes(":") ? value.slice(value.indexOf(":") + 1) : value;
+  if (/^[0-9a-fA-F]{128}$/.test(raw.trim())) return true;
+  return raw.trim().length >= 80;
 }
 
 export function computeRecordFileHash(recordPath: string): string {
@@ -122,7 +123,183 @@ export function computeRecordCanonicalHash(recordPath: string): string | null {
   }
 }
 
-export function verifyIntentBinding(recordPath: string, intentPath: string): IntentVerificationResult {
+export function computeIntentCanonicalHashFromObject(intent: JsonObject): string {
+  return sha256PrefixedBytes(canonicalizeJsonValue(intent as JsonValue));
+}
+
+function computeSignatureBodyHash(signatureBody: JsonObject): string {
+  return sha256PrefixedBytes(canonicalizeJsonValue(signatureBody as JsonValue));
+}
+
+function verifyDetachedIntentSignature(
+  signaturePath: string,
+  computedIntentCanonicalHash: string | null,
+  declaredRecordHash: string | null,
+  errors: string[],
+  warnings: string[]
+): {
+  signatureFileOk: boolean;
+  declaredIntentHash: string | null;
+  intentHashBindingOk: boolean;
+  declaredSignatureBodyHash: string | null;
+  computedSignatureBodyHash: string | null;
+  signatureBodyHashOk: boolean;
+  publicKeyHashOk: boolean | null;
+  signatureShapeOk: boolean;
+  signatureOk: boolean;
+} {
+  let signatureFileOk = false;
+  let sigJson: JsonObject | null = null;
+
+  try {
+    sigJson = readJsonObject(signaturePath);
+    signatureFileOk = true;
+  } catch (err) {
+    errors.push(`intent_signature_file_error:${err instanceof Error ? err.message : "unknown"}`);
+  }
+
+  const signatureBody = sigJson ? getObject(sigJson, "signature_body") ?? getObject(sigJson, "body") : null;
+  const signatureBlock = sigJson ? getObject(sigJson, "signature") : null;
+  const selfCheck = sigJson ? getObject(sigJson, "self_check") : null;
+  const bodyIntent = getObject(signatureBody, "intent");
+  const bodyRecord = getObject(signatureBody, "record");
+  const bodySigner = getObject(signatureBody, "signer");
+
+  const declaredIntentHashRaw =
+    getString(bodyIntent, "intent_hash") ??
+    getString(signatureBody, "intent_hash") ??
+    getString(sigJson, "intent_hash") ??
+    findStringRecursive(sigJson, ["target_intent_hash", "intent_attestation_hash", "attestation_hash"]);
+
+  const declaredIntentHash = declaredIntentHashRaw ? normalizeHash(declaredIntentHashRaw) : null;
+  const intentHashBindingOk = Boolean(declaredIntentHash && computedIntentCanonicalHash && declaredIntentHash === computedIntentCanonicalHash);
+
+  if (!declaredIntentHash) {
+    errors.push("intent_signature_intent_hash_missing");
+  } else if (!intentHashBindingOk) {
+    errors.push(`intent_signature_intent_hash_mismatch:declared=${declaredIntentHash}:computed=${computedIntentCanonicalHash ?? "unavailable"}`);
+  }
+
+  const signatureRecordHashRaw =
+    getString(bodyRecord, "record_hash") ??
+    getString(signatureBody, "record_hash");
+
+  if (signatureRecordHashRaw && declaredRecordHash) {
+    const signatureRecordHash = normalizeHash(signatureRecordHashRaw);
+    if (signatureRecordHash !== declaredRecordHash) {
+      errors.push(`intent_signature_record_hash_mismatch:signature=${signatureRecordHash}:intent=${declaredRecordHash}`);
+    }
+  } else {
+    warnings.push("intent_signature_record_hash_not_declared");
+  }
+
+  const declaredSignatureBodyHashRaw =
+    getString(sigJson, "signature_body_hash") ??
+    getString(selfCheck, "signature_body_hash") ??
+    getString(signatureBlock, "target_hash");
+
+  const declaredSignatureBodyHash = declaredSignatureBodyHashRaw ? normalizeHash(declaredSignatureBodyHashRaw) : null;
+  const computedSignatureBodyHash = signatureBody ? computeSignatureBodyHash(signatureBody) : null;
+  const signatureBodyHashOk = Boolean(
+    declaredSignatureBodyHash &&
+    computedSignatureBodyHash &&
+    declaredSignatureBodyHash === computedSignatureBodyHash
+  );
+
+  if (!signatureBody) {
+    errors.push("intent_signature_body_missing");
+  }
+
+  if (!declaredSignatureBodyHash) {
+    errors.push("intent_signature_body_hash_missing");
+  } else if (!signatureBodyHashOk) {
+    errors.push(`intent_signature_body_hash_mismatch:declared=${declaredSignatureBodyHash}:computed=${computedSignatureBodyHash ?? "unavailable"}`);
+  }
+
+  const publicKeyValue =
+    getString(bodySigner, "public_key") ??
+    getString(signatureBlock, "public_key") ??
+    findStringRecursive(sigJson, ["signer_public_key", "intent_public_key", "ed25519_public_key"]);
+
+  const declaredPublicKeyHashRaw =
+    getString(bodySigner, "public_key_hash") ??
+    getString(signatureBlock, "public_key_hash") ??
+    findStringRecursive(sigJson, ["signer_public_key_hash", "intent_public_key_hash", "ed25519_public_key_hash"]);
+
+  let publicKeyBytes: Uint8Array | null = null;
+  let publicKeyHashOk: boolean | null = null;
+
+  if (!publicKeyValue) {
+    errors.push("intent_signature_public_key_missing");
+  } else {
+    try {
+      publicKeyBytes = decodeBytes(publicKeyValue);
+      const computedPublicKeyHash = publicKeyTextHash(publicKeyValue);
+
+      if (declaredPublicKeyHashRaw) {
+        const declaredPublicKeyHash = normalizeHash(declaredPublicKeyHashRaw);
+        publicKeyHashOk = declaredPublicKeyHash === computedPublicKeyHash;
+        if (!publicKeyHashOk) {
+          errors.push(`intent_signature_public_key_hash_mismatch:declared=${declaredPublicKeyHash}:computed=${computedPublicKeyHash}`);
+        }
+      } else {
+        warnings.push("intent_signature_public_key_hash_not_declared");
+      }
+    } catch (err) {
+      errors.push(`intent_signature_public_key_decode_error:${err instanceof Error ? err.message : "unknown"}`);
+    }
+  }
+
+  const signatureValue =
+    getString(signatureBlock, "signature") ??
+    getString(sigJson, "signature") ??
+    findStringRecursive(sigJson, ["ed25519_signature", "signature_value", "intent_signature", "detached_signature"]);
+
+  let signatureShapeOk = false;
+  let signatureOk = false;
+
+  if (!signatureValue) {
+    errors.push("intent_signature_missing");
+  } else if (!signatureLooksHexOrBase64(signatureValue)) {
+    errors.push("intent_signature_shape_invalid");
+  } else {
+    try {
+      const signatureBytes = decodeBytes(signatureValue);
+      signatureShapeOk = signatureBytes.length === 64;
+
+      if (!signatureShapeOk) {
+        errors.push(`intent_signature_length_invalid:${signatureBytes.length}`);
+      } else if (publicKeyBytes && signatureBody) {
+        const message = Uint8Array.from(Buffer.from(canonicalizeJsonValue(signatureBody as JsonValue), "utf-8"));
+        signatureOk = verifyEd25519Signature(signatureBytes, message, publicKeyBytes);
+
+        if (!signatureOk) {
+          errors.push("intent_signature_invalid");
+        }
+      }
+    } catch (err) {
+      errors.push(`intent_signature_verification_error:${err instanceof Error ? err.message : "unknown"}`);
+    }
+  }
+
+  return {
+    signatureFileOk,
+    declaredIntentHash,
+    intentHashBindingOk,
+    declaredSignatureBodyHash,
+    computedSignatureBodyHash,
+    signatureBodyHashOk,
+    publicKeyHashOk,
+    signatureShapeOk,
+    signatureOk
+  };
+}
+
+export function verifyIntentBinding(
+  recordPath: string,
+  intentPath: string,
+  signaturePath?: string
+): IntentVerificationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -147,6 +324,8 @@ export function verifyIntentBinding(recordPath: string, intentPath: string): Int
   } catch (err) {
     errors.push(`record_file_error:${err instanceof Error ? err.message : "unknown"}`);
   }
+
+  const computedIntentCanonicalHash = intent ? computeIntentCanonicalHashFromObject(intent) : null;
 
   const intentBody = intent ? getObject(intent, "intent_body") ?? getObject(intent, "body") : null;
   const bindingObject =
@@ -175,7 +354,7 @@ export function verifyIntentBinding(recordPath: string, intentPath: string): Int
   const declaredRecordHash = declaredRecordHashRaw ? normalizeHash(declaredRecordHashRaw) : null;
 
   let recordHashBindingOk = false;
-  let recordHashBindingMethod: "file_sha256" | "canonical_json_sha256" | null = null;
+  let recordHashBindingMethod: RecordHashBindingMethod = null;
 
   if (!declaredRecordHash) {
     errors.push("intent_record_hash_missing");
@@ -211,21 +390,68 @@ export function verifyIntentBinding(recordPath: string, intentPath: string): Int
       findStringRecursive(intent, ["intent_purpose"])
     : null;
 
-  const signaturePresent = intent ? hasSignatureLikeField(intent) : false;
+  let signatureFileOk: boolean | null = null;
+  let declaredIntentHash: string | null = null;
+  let intentHashBindingOk: boolean | null = null;
+  let declaredSignatureBodyHash: string | null = null;
+  let computedSignatureBodyHash: string | null = null;
+  let signatureBodyHashOk: boolean | null = null;
+  let publicKeyHashOk: boolean | null = null;
+  let signatureShapeOk: boolean | null = null;
+  let signatureOk: boolean | null = null;
+  let signatureVerificationStatus: IntentSignatureVerificationStatus = "NOT_PROVIDED";
 
-  if (signaturePresent) {
-    warnings.push("intent_signature_present_but_signature_verification_not_implemented_in_v2_12_0_mvp");
+  if (signaturePath) {
+    const sig = verifyDetachedIntentSignature(
+      signaturePath,
+      computedIntentCanonicalHash,
+      declaredRecordHash,
+      errors,
+      warnings
+    );
+
+    signatureFileOk = sig.signatureFileOk;
+    declaredIntentHash = sig.declaredIntentHash;
+    intentHashBindingOk = sig.intentHashBindingOk;
+    declaredSignatureBodyHash = sig.declaredSignatureBodyHash;
+    computedSignatureBodyHash = sig.computedSignatureBodyHash;
+    signatureBodyHashOk = sig.signatureBodyHashOk;
+    publicKeyHashOk = sig.publicKeyHashOk;
+    signatureShapeOk = sig.signatureShapeOk;
+    signatureOk = sig.signatureOk;
+
+    signatureVerificationStatus =
+      sig.signatureFileOk &&
+      sig.intentHashBindingOk &&
+      sig.signatureBodyHashOk &&
+      sig.signatureShapeOk &&
+      sig.signatureOk &&
+      (sig.publicKeyHashOk !== false)
+        ? "VERIFIED"
+        : "INVALID";
   } else {
-    warnings.push("intent_signature_not_present_or_not_checked");
+    warnings.push("intent_detached_signature_not_provided");
   }
 
-  const ok = intentFileOk && recordFileOk && recordHashBindingOk;
+  const signatureRequiredOk =
+    !signaturePath ||
+    (
+      signatureFileOk === true &&
+      intentHashBindingOk === true &&
+      signatureBodyHashOk === true &&
+      signatureShapeOk === true &&
+      signatureOk === true &&
+      publicKeyHashOk !== false
+    );
+
+  const ok = intentFileOk && recordFileOk && recordHashBindingOk && signatureRequiredOk;
 
   return {
     ok,
     profile: INTENT_VERIFIER_PROFILE,
     recordPath,
     intentPath,
+    signaturePath: signaturePath ?? null,
     intentFileOk,
     recordFileOk,
     declaredRecordHash,
@@ -236,8 +462,17 @@ export function verifyIntentBinding(recordPath: string, intentPath: string): Int
     intentStatus,
     intentProfile,
     intentPurpose,
-    signaturePresent,
-    signatureVerificationStatus: signaturePresent ? "NOT_IMPLEMENTED" : "NOT_PRESENT",
+    computedIntentCanonicalHash,
+    signatureFileOk,
+    declaredIntentHash,
+    intentHashBindingOk,
+    declaredSignatureBodyHash,
+    computedSignatureBodyHash,
+    signatureBodyHashOk,
+    publicKeyHashOk,
+    signatureShapeOk,
+    signatureOk,
+    signatureVerificationStatus,
     errors,
     warnings
   };

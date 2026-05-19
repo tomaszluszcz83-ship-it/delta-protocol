@@ -10,18 +10,19 @@ import { verifyIntentBinding } from "../src/intentVerifier.js";
 const command = "verify-intent-json";
 const record = argValue("--record") ?? process.argv[2] ?? null;
 const intent = argValue("--intent") ?? process.argv[3] ?? null;
+const signature = argValue("--signature");
 
 if (!record || !intent) {
   const result = usageResult(
     command,
-    "usage: npm run verify-intent-json -- --record path/to/delta-record.json --intent path/to/intent-attestation.json"
+    "usage: npm run verify-intent-json -- --record path/to/delta-record.json --intent path/to/intent-attestation.json [--signature path/to/intent-signature.json]"
   );
   printJson(result);
   process.exit(result.code);
 }
 
 try {
-  const intentResult = verifyIntentBinding(record, intent);
+  const intentResult = verifyIntentBinding(record, intent, signature ?? undefined);
   const result = verificationResult(
     command,
     intentResult.ok,
