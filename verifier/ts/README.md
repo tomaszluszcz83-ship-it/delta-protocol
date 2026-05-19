@@ -1,79 +1,43 @@
-# DELTA TypeScript Verifier v2.9.3
+# DELTA TypeScript Verifier v2.9.4
 
 Status: **experimental independent verifier**  
-Scope: **L0/L1 + schema pre-verification + Ed25519 signed record MVP + `.delta` bundle verification**
+Scope: **L0/L1 + schema + Ed25519 signed record + `.delta` bundle + signed bundle verification**
 
 ## What this verifies
 
-v2.9.3 verifies:
+v2.9.4 verifies:
 
-- DELTA Canonical JSON Profile v1 subset,
-- SHA-256 over canonical bytes,
-- frozen canonical JSON vectors,
-- basic DELTA record hash checks,
-- JSON Schema compilation and validation,
-- Ed25519 signed record verification for the v2.9.2 TypeScript MVP profile,
-- `.delta` ZIP bundle structure and manifest integrity.
+- canonical JSON vectors,
+- schema compilation,
+- Ed25519 signed records under the narrow v2.9.2 MVP profile,
+- public `.delta` bundle container integrity,
+- detached signed bundle signatures.
 
-## Bundle verification scope
+## Signed bundle verification scope
 
-v2.9.3 checks:
+v2.9.4 checks:
 
-- ZIP can be opened,
-- `bundle_manifest.json` exists,
-- duplicate filenames are rejected,
-- path traversal is rejected,
-- forbidden sensitive filename fragments are rejected,
-- manifest-declared artifact SHA-256 hashes match,
-- manifest-declared artifact sizes match,
-- unreferenced artifacts are rejected.
+- the `.delta` bundle passes v2.9.3 bundle verification,
+- the detached signature JSON file is readable,
+- the signature binds to the exact bundle file hash,
+- public key hash is checked when declared,
+- `signature_body_hash` is checked when declared,
+- Ed25519 signature shape and cryptographic verification.
 
-## Commands
-
-Install:
+## Command
 
 ```bash
-cd verifier/ts
-npm install
+npm run verify-signed-bundle -- --bundle path/to/sample.delta --signature path/to/sample.delta.sig.json
 ```
 
-Run existing checks:
+Optional public key override:
 
 ```bash
-npm run verify-vectors
-npm run verify-schemas
+npm run verify-signed-bundle -- --bundle path/to/sample.delta --signature path/to/sample.delta.sig.json --public-key ed25519:<hex>
 ```
-
-Verify a `.delta` bundle:
-
-```bash
-npm run verify-bundle -- --bundle path/to/sample.delta
-```
-
-Expected successful output:
-
-```text
-DELTA_TS_BUNDLE_VERIFY_OK=True
-```
-
-## What this does not verify
-
-v2.9.3 does not verify:
-
-- signed bundle signatures,
-- Proof of Replay,
-- Proof of Intent authority or policy,
-- Proof of Audit encryption/decryption,
-- Proof of Publication anchoring truth,
-- Proof of Trust authority policy,
-- Proof of Wallet cryptographic profiles,
-- Ethereum EIP-191/EIP-712,
-- Bitcoin BIP-322.
 
 ## Security boundary
 
-Bundle verification proves only that the `.delta` ZIP container matches its public manifest and anti-leak guardrails.
+Signed bundle verification proves only that an Ed25519 key signed data bound to the exact `.delta` bundle hash.
 
-It does not prove that contained proofs are cryptographically valid.
-
-It does not prove legal identity, signer authority, real-world truth, wallet ownership, regulatory compliance, or trust validity.
+It does not prove legal identity, signer authority, real-world truth, wallet ownership, regulatory compliance, trust validity, or correctness of contained proofs.
