@@ -1,272 +1,400 @@
 # DELTA Protocol
 
-[![Latest release](https://img.shields.io/github/v/release/tomaszluszcz83-ship-it/delta-protocol?sort=semver)](https://github.com/tomaszluszcz83-ship-it/delta-protocol/releases)
-[![License](https://img.shields.io/github/license/tomaszluszcz83-ship-it/delta-protocol)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.x-blue)](https://www.python.org/)
-
 > **The internet can prove ownership. DELTA proves change.**
 
-DELTA Protocol is an open, zero-token cryptographic protocol for creating and verifying **Proofs of Change**.
+DELTA Protocol is an open, zero-token cryptographic protocol for creating, binding, packaging, publishing, and verifying **Proofs of Change**.
 
-It is designed to prove that a declared digital change is bound to a specific record, evidence, verification result, replay method, intent, audit package, publication proof, trust chain entry, or wallet/address-control proof.
+It is designed for software, CI/CD, audit trails, sensor systems, private enterprise evidence, public verification, and future privacy-preserving ZK provenance.
 
-DELTA is **not** a cryptocurrency, token, SaaS, marketplace, or user-account platform.
+DELTA is not a cryptocurrency, token, blockchain, SaaS platform, marketplace, or user-account system.
+
+It is a protocol and reference implementation for cryptographically proving that a declared change is bound to declared evidence, verification results, signatures, intent, audit artifacts, publication proofs, trust context, and private evidence commitments.
 
 ---
 
 ## Current status
 
-**Current maturity:** technical alpha / reference implementation / RFC draft.
+```text
+Current public milestone: v2.15.0
+Current readiness refresh: v2.15.1
+Next technical milestone: v2.16.0 — ZK Statement Design
+```
 
-DELTA is not yet a final external standard or enterprise-ready product. It is a working reference implementation and protocol draft suitable for public technical review, security review, audit discussion, and RFC-style feedback.
+DELTA currently includes:
 
-Current milestone:
+- Core Proof of Change model
+- Canonical JSON / JCS-compatible profile
+- JSON Schema registry
+- Proof of Replay
+- Proof of Intent
+- Proof of Audit
+- Proof of Publication
+- Proof of Trust foundations
+- Wallet / address-control proof profiles
+- Portable `.delta` bundles
+- Detached signed bundles
+- TypeScript verifier profiles
+- TypeScript CLI JSON output contracts
+- TypeScript Proof of Intent verification chain
+- Private Evidence Commitments
+- Private Evidence Merkle Set
+- ZK-ready public-root / private-witness preparation layer
+
+---
+
+## Core model
+
+DELTA represents change as:
 
 ```text
-v2.5.0 — DELTA Core RFC-01 / Protocol Specification
+Before → Action → After → Evidence → Verification → Ledger
+```
+
+A DELTA record binds:
+
+```text
+what existed before,
+what action was performed,
+what existed after,
+what evidence supports the claim,
+how verification was performed,
+and how the result is chained, signed, packaged, published, or audited.
 ```
 
 ---
 
 ## What DELTA proves
 
-DELTA is based on the model:
+DELTA proves cryptographic relationships between artifacts.
 
-```text
-Before → Action → After → Evidence → Verification → Ledger
-```
+Depending on the enabled profile, DELTA can prove that:
 
-DELTA can prove cryptographic consistency between:
-
-- a declared change,
-- a signed DELTA record,
-- before/after hashes,
-- measurement method metadata,
-- evidence commitments,
-- replay verification output,
-- signed intent,
-- encrypted audit evidence,
-- publication proof,
-- trust-ledger entry,
-- wallet/address-control proof.
-
-DELTA proves **cryptographic binding**, not legal or real-world truth.
+- a record has a specific cryptographic hash,
+- a signature was made by a specific cryptographic key,
+- an intent attestation is bound to a record,
+- a detached intent signature is valid,
+- a signing key is present in a declared registry,
+- a local policy/deadline check was satisfied under declared time,
+- a bundle has not been tampered with,
+- a bundle was signed by a specific Ed25519 key,
+- a publication proof is bound to a record hash,
+- a private evidence commitment matches disclosed evidence and opening data,
+- a disclosed evidence item belongs to a public Merkle evidence root.
 
 ---
 
 ## What DELTA does not prove
 
-DELTA does **not** prove by itself:
+DELTA does not automatically prove:
 
-- legal ownership,
-- legal approval,
-- identity of a real-world person,
-- wallet balance,
+- legal identity,
+- signer authority,
 - regulatory compliance,
-- truth of a ticket, invoice, contract, or external database,
-- that evidence was not fabricated before hashing,
-- external-world truth,
-- full Bitcoin BIP-322 script-level correctness for `bitcoin_bip322_external_v1`.
+- real-world truth,
+- sensor honesty,
+- organizational approval,
+- evidence completeness outside the committed set,
+- policy correctness,
+- legal validity of evidence,
+- absence of other evidence,
+- correctness of input data before signing or committing.
 
-External governance, legal interpretation, identity systems, audits, and regulatory processes may be layered on top of DELTA, but they are not automatically created by DELTA.
+This is intentional.
 
-See:
+DELTA is a cryptographic proof layer, not an oracle of reality or law.
+
+---
+
+## Why DELTA is zero-token
+
+DELTA does not require a native token.
+
+The protocol is designed around:
+
+- SHA-256 hashes,
+- canonical JSON,
+- digital signatures,
+- local verification,
+- public/private key cryptography,
+- append-only records,
+- optional publication proofs,
+- optional bundles,
+- optional private evidence commitments,
+- optional future ZK proofs.
+
+External chains or timestamping systems may be used as optional anchors, but DELTA itself does not require a blockchain or token.
+
+---
+
+## Main proof layers
+
+### Proof of Change
+
+Core DELTA record binding:
 
 ```text
-docs/positioning/what-delta-proves.md
+Before → Action → After → Evidence → Verification → Ledger
+```
+
+### Proof of Intent
+
+Proof that a human or authorized system declared intent for a specific change.
+
+Current TypeScript verifier support includes:
+
+- record hash binding,
+- detached Ed25519 intent signature verification,
+- local registry public key binding,
+- local policy/deadline checks,
+- machine-readable JSON output,
+- contract tests.
+
+### Proof of Replay
+
+A replay result can verify that a declared procedure reproduces expected outputs under declared assumptions.
+
+Replay does not prove that the original environment was identical.
+
+### Proof of Audit
+
+Private evidence can be encrypted for an auditor and verified for binding without public disclosure.
+
+### Proof of Publication
+
+A record hash can be bound to a publication proof or external timestamp-like proof.
+
+### Proof of Trust
+
+DELTA supports trust-ledger and delegation concepts while preserving a strict distinction between cryptographic validity and trust validity.
+
+### Proof of Wallet / Address Control
+
+DELTA supports wallet/address proof profiles.
+
+Ethereum EIP-191 `personal_sign` verification is supported.
+
+Bitcoin external / BIP-322-ready profile remains conservative and must be treated as `shape_only` / `external_pending` unless full local cryptographic verification is implemented.
+
+Expected boundary:
+
+```text
+CRYPTO_SIGNATURE_VERIFIED=False
+```
+
+### Private Evidence Commitments
+
+DELTA can publish commitments to private evidence without publishing the raw evidence.
+
+This is not encryption and not ZK.
+
+### Private Evidence Merkle Set
+
+DELTA can publish a Merkle root over multiple private evidence commitments and later selectively disclose one evidence item with a private opening and Merkle proof.
+
+This prepares the public-root / private-witness structure required for future ZK provenance.
+
+---
+
+## TypeScript verifier
+
+The TypeScript verifier is an experimental cross-language verifier focused on selected profiles.
+
+It currently supports:
+
+- canonical JSON vector verification,
+- schema validation,
+- Ed25519 signed-record verification,
+- `.delta` bundle verification,
+- signed bundle verification,
+- CLI JSON output wrappers,
+- CLI contract tests,
+- Proof of Intent verification chain:
+  - record binding,
+  - detached signature,
+  - registry binding,
+  - policy/deadline checks,
+  - intent contract tests.
+
+The TypeScript verifier does not yet implement every Python reference feature.
+
+---
+
+## Private evidence and future ZK
+
+DELTA has reached the preparation layer for privacy-preserving public verification.
+
+Current foundation:
+
+```text
+v2.14.0 — Private Evidence Commitment Profile
+v2.15.0 — Private Evidence Merkle Set
+```
+
+Next design milestone:
+
+```text
+v2.16.0 — ZK Statement Design / Public Inputs vs Private Witness
+```
+
+The first candidate ZK statement is:
+
+```text
+I know private evidence included under this public Merkle root,
+and that evidence satisfies policy P,
+without revealing the evidence.
+```
+
+DELTA will not treat ZK as magic.
+
+Future ZK proofs must specify:
+
+- exact public inputs,
+- exact private witness,
+- exact circuit statement,
+- exact proof profile,
+- exact limitations,
+- exact trust assumptions.
+
+---
+
+## Repository structure
+
+```text
+docs/                 Protocol documentation and milestone docs
+docs/security/        Threat model, risk register, boundaries, incident guidance
+docs/rfc/             RFC-style protocol documents
+docs/standard/        Canonical JSON, schema registry, conformance foundations
+docs/intent/          Proof of Intent documentation
+docs/audit/           Proof of Audit documentation
+docs/publication/     Proof of Publication documentation
+docs/private-evidence/ Private evidence commitment and Merkle set docs
+docs/zk/              ZK design documents
+schemas/              JSON Schema registry
+tools/                Python reference tools
+src/                  Python CLI/reference implementation
+verifier/ts/          Experimental TypeScript verifier
+tests/                Vectors and test materials
 ```
 
 ---
 
-## Core proof layers
+## Quick verification commands
 
-DELTA currently includes the following proof layers:
+Python reference checks:
 
-| Layer | Status | Purpose |
-|---|---:|---|
-| Signed Sensor Record | implemented | signed machine-created Proof-of-Change record |
-| Proof of Replay | implemented | reproduce declared measurement from a clean/fresh context |
-| Proof of Intent | implemented | bind signed approval/intent to a full DELTA record hash |
-| Intent Policy Reporting | implemented | report whether intent policy is declared/satisfied |
-| Proof of Audit | implemented | encrypt private evidence for auditors and bind it to a record |
-| Proof of Publication | implemented | bind a publication/timestamp proof object to a record |
-| OpenTimestamps pending adapter | implemented | external timestamp evidence shape/binding layer |
-| Proof of Trust | implemented | hash-chain trust ledger for record events |
-| Proof of Wallet | implemented | wallet/address-control proof bound to a DELTA record |
-| RFC-01 Core Protocol | draft | standardization document for DELTA core |
-| RFC-02 Proof of Wallet | draft | standardization document for wallet proof profiles |
-
----
-
-## Proof of Wallet profiles
-
-DELTA currently supports these wallet/address-control profiles:
-
-| Standard | Status | Verification level |
-|---|---:|---|
-| `ed25519_address_control_v1` | implemented | local signature verification |
-| `ethereum_eip191_personal_sign_v1` | implemented | local Ethereum address recovery |
-| `ethereum_eip712_typed_data_v1` | implemented | local typed-data signature recovery |
-| `bitcoin_bip322_external_v1` | implemented skeleton | `shape_only` / `external_pending` |
-
-Important Bitcoin boundary:
-
-```text
-bitcoin_bip322_external_v1 does not yet perform local cryptographic BIP-322 script-level verification.
-CRYPTO_SIGNATURE_VERIFIED=False is intentional for this profile.
-```
-
----
-
-## Quick start
-
-The simplest public verification path requires no private keys.
-
-```bash
+```powershell
 python src/delta_cli.py verify-all
+
+python tools\delta_canonical_json.py verify-vectors --vectors tests\vectors\canonical-json\vectors.json
 ```
 
-Expected result:
+TypeScript verifier checks:
 
-```text
-DELTA CLI RESULT: OK
+```powershell
+cd verifier\ts
+
+npm install
+npm run build
+npm run verify-vectors
+npm run verify-schemas
 ```
 
-A minimal GitHub Actions verification workflow can be as small as:
+TypeScript contract checks:
 
-```yaml
-name: DELTA Verify
+```powershell
+cd C:\path\to\delta-protocol
 
-on:
-  push:
-  pull_request:
-  workflow_dispatch:
-
-jobs:
-  verify:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.x"
-      - name: Verify DELTA public proof artifacts
-        run: python src/delta_cli.py verify-all
+python tools\delta_ts_cli_contract_tests.py
+python tools\delta_ts_intent_contract_tests.py
 ```
 
----
+Private evidence commitment checks:
 
-## Repository map
+```powershell
+python tools\delta_private_evidence_commitment.py verify-public --public path\to\private-evidence-commitment.public.json
+```
 
-Key paths:
+Private evidence Merkle set checks:
 
-```text
-src/delta_cli.py                         Core CLI verification entrypoint
-tools/delta_sensor.py                    Sensor record creation tools
-tools/delta_replay.py                    Replay verification
-tools/delta_audit.py                     Proof of Audit encrypted evidence
-tools/delta_publish.py                   Proof of Publication
-tools/delta_trust.py                     Proof of Trust hash-chain ledger
-tools/delta_wallet.py                    Proof of Wallet / Address Control
-docs/rfc/RFC-01-delta-core-protocol.md   DELTA Core Protocol RFC draft
-docs/rfc/RFC-02-proof-of-wallet.md       Proof of Wallet RFC draft
-docs/positioning/what-delta-proves.md    Security boundary and positioning
-docs/use-cases/proof-of-reserves.md      Proof of Reserves use case
-docs/use-cases/ci-cd-audit.md            CI/CD audit use case
+```powershell
+python tools\delta_private_evidence_set.py verify-public --public path\to\private-evidence-set.public.json
 ```
 
 ---
 
-## RFC documents
+## Security posture
 
-Start here:
+DELTA uses a strict anti-overclaiming model.
 
-```text
-docs/rfc/RFC-01-delta-core-protocol.md
-```
-
-Then read:
+Every proof layer must distinguish:
 
 ```text
-docs/rfc/RFC-02-proof-of-wallet.md
-docs/positioning/what-delta-proves.md
-docs/use-cases/proof-of-reserves.md
-docs/use-cases/ci-cd-audit.md
+cryptographic validity
+trust validity
+legal validity
+real-world truth
+policy sufficiency
+regulatory sufficiency
 ```
 
-RFC-01 is a draft standardization document. It describes the current implemented DELTA profiles and the intended core protocol model, but it is not yet a final external standard.
+A cryptographically valid artifact can still be legally insufficient, operationally misleading, or based on false input data.
+
+DELTA makes these boundaries explicit.
 
 ---
 
-## Security model
+## Implementation status
 
-DELTA uses:
+Current Python code is an Alpha Reference Implementation.
 
-- SHA-256 hash binding,
-- canonical JSON profile,
-- detached signatures,
-- full `delta-record.json` hash binding,
-- evidence hashes,
-- replay comparison,
-- encrypted audit packages,
-- hash-chain ledger entries,
-- wallet signature proofs where supported.
+Current TypeScript verifier is an experimental cross-language verifier for selected profiles.
 
-Security boundaries are part of the protocol. DELTA must not claim more than it can verify cryptographically.
-
-See:
-
-```text
-SECURITY.md
-docs/positioning/what-delta-proves.md
-docs/rfc/RFC-01-delta-core-protocol.md
-```
+Production-grade verifiers may later be implemented in Rust, Go, or other languages with frozen vectors and conformance suites.
 
 ---
 
-## Roadmap
+## Roadmap snapshot
 
-Near-term priorities:
-
-1. Formal JSON schemas.
-2. Stable test vectors for every proof type.
-3. Threat model as a dedicated document.
-4. Hardening canonical JSON rules.
-5. Local Bitcoin BIP-322 verification for selected address/proof types.
-6. GitHub Action packaging.
-7. GitLab CI and Docker image.
-8. Independent security review.
-9. RFC feedback from security, audit, and open-source communities.
-
----
-
-## Contributing
-
-DELTA is in technical alpha. Feedback is welcome, especially from:
-
-- cryptographers,
-- security engineers,
-- auditors,
-- CI/CD maintainers,
-- wallet developers,
-- standards reviewers,
-- open-source maintainers.
-
-Read:
+Near-term:
 
 ```text
-CONTRIBUTING.md
-SECURITY.md
+v2.15.1 — Public README / documentation readiness refresh
+v2.16.0 — ZK Statement Design / Public Inputs vs Private Witness
+v2.17.0 — ZK Threat Model + Circuit Candidate Specification
+v3.0.0-alpha — ZK Provenance Proof of Concept
 ```
 
-Use the issue templates for RFC feedback and security-review requests.
+Future:
+
+```text
+ZK proof packages
+ZK report export
+browser-verifiable ZK summaries
+policy circuit registry
+signed policy artifacts
+private enterprise audit certificates
+```
 
 ---
 
 ## License
 
-See:
+Apache-2.0.
+
+---
+
+## Project positioning
+
+DELTA Protocol is built for environments where the most important question is not only:
 
 ```text
-LICENSE
+Who owns what?
 ```
+
+but:
+
+```text
+What changed, who intended it, what evidence supports it, how was it verified, and can that be proven later?
+```
+
+DELTA proves change.
