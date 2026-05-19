@@ -1,36 +1,37 @@
-# DELTA TypeScript Verifier v2.9.0
+# DELTA TypeScript Verifier v2.9.1
 
 Status: **experimental independent verifier**  
-Scope: **L0/L1 only**
+Scope: **L0/L1 + schema pre-verification**
 
 ## What this verifies
 
-v2.9.0 verifies:
+v2.9.1 verifies:
 
 - DELTA Canonical JSON Profile v1 subset,
 - SHA-256 over canonical bytes,
 - frozen canonical JSON vectors from `tests/vectors/canonical-json/vectors.json`,
 - basic DELTA record required fields,
-- basic record hash recomputation by removing `record_hash` and hashing the remaining canonical JSON.
+- basic record hash recomputation by removing `record_hash`,
+- JSON Schema compilation from the repository-local `schemas/` registry,
+- JSON Schema validation for selected proof artifacts.
 
 ## What this does not verify
 
-v2.9.0 does not verify:
+v2.9.1 does not verify:
 
-- JSON Schema registry conformance,
 - Ed25519 signatures,
 - Proof of Replay,
-- Proof of Intent,
-- Proof of Audit,
-- Proof of Publication,
-- Proof of Trust,
-- Proof of Wallet,
+- Proof of Intent cryptographic signatures,
+- Proof of Audit encryption/decryption,
+- Proof of Publication anchoring truth,
+- Proof of Trust authority policy,
+- Proof of Wallet cryptographic profile verification,
 - `.delta` bundles,
 - signed bundles,
 - Ethereum EIP-191/EIP-712,
 - Bitcoin BIP-322.
 
-Those are intentionally out of scope.
+Schema validation is a **pre-verification step only**.
 
 ## Install
 
@@ -51,22 +52,52 @@ Expected final output:
 DELTA_TS_VERIFY_OK=True
 ```
 
-## Run basic record check
+## Compile schemas
 
 ```bash
-npm run verify-record -- path/to/delta-record.json
+npm run verify-schemas
 ```
 
-Expected output for a matching basic record hash:
+Expected final output:
 
 ```text
-DELTA_TS_RECORD_VERIFY_OK=True
+DELTA_TS_SCHEMA_VERIFY_OK=True
+```
+
+## Validate a file against a named schema
+
+```bash
+npm run validate-schema -- --schema delta-record --file path/to/delta-record.json
+```
+
+Supported schema names:
+
+```text
+delta-common
+delta-record
+intent-attestation
+audit-package
+publication-proof
+trust-ledger
+wallet-proof
+schema-registry
 ```
 
 ## Security boundary
 
-This verifier is an experimental cross-language verifier for canonicalization and basic hashing.
+This verifier is experimental.
 
-It does not replace the Python reference implementation.
+JSON Schema validation does not prove:
 
-It does not prove legal truth, real-world truth, identity, signer authority, wallet ownership, regulatory compliance, or validity of higher proof layers.
+- hash correctness,
+- canonical JSON correctness,
+- signature correctness,
+- replay correctness,
+- intent authority,
+- audit evidence truth,
+- publication truth,
+- wallet ownership,
+- legal truth,
+- regulatory compliance.
+
+Schema validation only checks that JSON shape is compatible with a declared schema.

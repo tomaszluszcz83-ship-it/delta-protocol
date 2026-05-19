@@ -16,3 +16,13 @@ export {
   verifyBasicRecord,
   verifyRequiredRecordFields
 } from "./recordVerifier.js";
+
+export {
+  DeltaSchemaVerifierError,
+  SCHEMA_NAME_TO_FILE,
+  compileAllSchemas,
+  createAjvWithSchemas,
+  getSchemaId,
+  loadSchemas,
+  validateJsonWithSchema
+} from "./schemaVerifier.js";

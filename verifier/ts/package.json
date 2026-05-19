@@ -1,14 +1,20 @@
 {
   "name": "@delta-protocol/typescript-verifier",
-  "version": "2.9.0",
+  "version": "2.9.1",
   "private": true,
   "type": "module",
-  "description": "Experimental DELTA TypeScript verifier L0/L1",
+  "description": "Experimental DELTA TypeScript verifier L0/L1 with JSON Schema validation",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "verify-vectors": "tsc -p tsconfig.json && node dist/scripts/verify-vectors.js ../../tests/vectors/canonical-json/vectors.json",
     "verify-record": "tsc -p tsconfig.json && node dist/scripts/verify-record.js",
-    "test": "npm run verify-vectors"
+    "verify-schemas": "tsc -p tsconfig.json && node dist/scripts/verify-schemas.js ../../schemas",
+    "validate-schema": "tsc -p tsconfig.json && node dist/scripts/validate-schema.js",
+    "test": "npm run verify-vectors && npm run verify-schemas"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
