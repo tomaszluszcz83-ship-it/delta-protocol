@@ -1,0 +1,64 @@
+{
+  "profile": "delta_jcs_json_v1",
+  "version": "2.6.0",
+  "description": "Frozen DELTA canonical JSON profile vectors for cross-language compatibility.",
+  "valid": [
+    {
+      "id": "001_SIMPLE_OBJECT",
+      "raw": "{\n  \"b\": 2,\n  \"a\": 1\n}",
+      "canonical": "{\"a\":1,\"b\":2}",
+      "sha256": "sha256:43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777"
+    },
+    {
+      "id": "002_UNICODE_EMOJI",
+      "raw": "{\"text\":\"Zażółć gęślą jaźń ✅ 🚀\",\"arr\":[\"Δ\",\"DELTA\"]}",
+      "canonical": "{\"arr\":[\"Δ\",\"DELTA\"],\"text\":\"Zażółć gęślą jaźń ✅ 🚀\"}",
+      "sha256": "sha256:81ac0ab72377abbbff4d29631c75f99a52dc9717f69331076d07b123f6112609"
+    },
+    {
+      "id": "003_NESTED_OBJECTS",
+      "raw": "{\"z\":{\"b\":true,\"a\":null},\"a\":[{\"y\":\"yes\",\"x\":\"ex\"},[]]}",
+      "canonical": "{\"a\":[{\"x\":\"ex\",\"y\":\"yes\"},[]],\"z\":{\"a\":null,\"b\":true}}",
+      "sha256": "sha256:2d70b0aea9b2df702f0774ecfac18e6e7b7e7da92f2e8f2f4eed2f25be965f38"
+    },
+    {
+      "id": "004_EMPTY_VALUES",
+      "raw": "{\"emptyObject\":{},\"emptyArray\":[]}",
+      "canonical": "{\"emptyArray\":[],\"emptyObject\":{}}",
+      "sha256": "sha256:3550455c72a27c21d00feb7313a840ff06ce20706854b520b4b6ea50cf47a190"
+    },
+    {
+      "id": "005_DELTA_LIKE_RECORD",
+      "raw": "{\"type\":\"delta_test_vector\",\"target\":{\"record_hash\":\"sha256:a2f8b06c17ac026e4737cf9779475774d3b52b1c1e12727bfbf14e0b03283950\",\"standard\":\"delta_jcs_json_v1\"},\"ok\":true,\"count\":3}",
+      "canonical": "{\"count\":3,\"ok\":true,\"target\":{\"record_hash\":\"sha256:a2f8b06c17ac026e4737cf9779475774d3b52b1c1e12727bfbf14e0b03283950\",\"standard\":\"delta_jcs_json_v1\"},\"type\":\"delta_test_vector\"}",
+      "sha256": "sha256:a0eb28ed33c1ffa8770f6293f0dfed774b0e3d524d9daf23ea8a0a684f629852"
+    }
+  ],
+  "invalid": [
+    {
+      "id": "I001_FLOAT",
+      "raw": "{\"amount\":1.5}",
+      "expected_rejection": "floating_point_not_allowed"
+    },
+    {
+      "id": "I002_NAN",
+      "raw": "{\"amount\":NaN}",
+      "expected_rejection": "non_finite_not_allowed"
+    },
+    {
+      "id": "I003_INFINITY",
+      "raw": "{\"amount\":Infinity}",
+      "expected_rejection": "non_finite_not_allowed"
+    },
+    {
+      "id": "I004_DUPLICATE_KEY",
+      "raw": "{\"a\":1,\"a\":2}",
+      "expected_rejection": "duplicate_key_not_allowed"
+    },
+    {
+      "id": "I005_UNSAFE_INTEGER",
+      "raw": "{\"n\":9007199254740992}",
+      "expected_rejection": "integer_outside_safe_range"
+    }
+  ]
+}
