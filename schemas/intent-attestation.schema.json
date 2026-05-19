@@ -1,0 +1,49 @@
+{
+  "$id": "https://delta-protocol.org/schemas/v2.6.1/intent-attestation.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "description": "Validation aid for DELTA intent attestations. It does not prove legal approval or real-world authority; verifiers MUST check signatures, registry status, timestamps, and target record binding.",
+  "properties": {
+    "created_at": {
+      "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/timestamp_string"
+    },
+    "intent_body": {
+      "type": "object"
+    },
+    "intent_signature": {
+      "type": "object"
+    },
+    "policy_id": {
+      "type": "string"
+    },
+    "public_key_hash": {
+      "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/sha256"
+    },
+    "schema_version": {
+      "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/delta_schema_version"
+    },
+    "signature": {
+      "type": "object"
+    },
+    "target": {
+      "additionalProperties": true,
+      "properties": {
+        "record_hash": {
+          "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/sha256"
+        }
+      },
+      "required": [
+        "record_hash"
+      ],
+      "type": "object"
+    },
+    "type": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "target"
+  ],
+  "title": "DELTA Proof of Intent Attestation Schema v2.6.1",
+  "type": "object"
+}
