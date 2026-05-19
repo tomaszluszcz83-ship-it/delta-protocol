@@ -1,0 +1,43 @@
+{
+  "$id": "https://delta-protocol.org/schemas/v2.6.1/trust-ledger.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "description": "Validation aid for DELTA trust ledgers. It checks ledger shape only; verifiers MUST recompute entry hashes, previous_entry_hash links, ledger body hash, and linked record/proof bindings.",
+  "properties": {
+    "chain_id": {
+      "type": "string"
+    },
+    "created_at": {
+      "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/timestamp_string"
+    },
+    "last_entry_hash": {
+      "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/sha256"
+    },
+    "ledger_body": {
+      "additionalProperties": true,
+      "properties": {
+        "entries": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "ledger_body_hash": {
+      "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/sha256"
+    },
+    "schema_version": {
+      "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/delta_schema_version"
+    },
+    "type": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "ledger_body"
+  ],
+  "title": "DELTA Proof of Trust Ledger Schema v2.6.1",
+  "type": "object"
+}

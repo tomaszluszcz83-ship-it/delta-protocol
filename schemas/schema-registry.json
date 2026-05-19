@@ -1,0 +1,54 @@
+{
+  "$id": "https://delta-protocol.org/schemas/v2.6.1/schema-registry.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "canonical_json_profile": "delta_jcs_json_v1",
+  "description": "Repository-local schema registry for DELTA Protocol v2.6.1. Schema validation is a pre-verification step and does not replace hash, signature, replay, audit, publication, trust, or wallet verification.",
+  "protocol_version": "DELTA-0",
+  "schema_version": "2.6.1",
+  "schemas": [
+    {
+      "id": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json",
+      "object_type": "delta_common_defs",
+      "path": "schemas/delta-common.schema.json",
+      "status": "draft"
+    },
+    {
+      "id": "https://delta-protocol.org/schemas/v2.6.1/delta-record.schema.json",
+      "object_type": "delta_sensor_record",
+      "path": "schemas/delta-record.schema.json",
+      "status": "draft"
+    },
+    {
+      "id": "https://delta-protocol.org/schemas/v2.6.1/intent-attestation.schema.json",
+      "object_type": "delta_intent_attestation",
+      "path": "schemas/intent-attestation.schema.json",
+      "status": "draft"
+    },
+    {
+      "id": "https://delta-protocol.org/schemas/v2.6.1/audit-package.schema.json",
+      "object_type": "delta_audit_package",
+      "path": "schemas/audit-package.schema.json",
+      "status": "draft"
+    },
+    {
+      "id": "https://delta-protocol.org/schemas/v2.6.1/publication-proof.schema.json",
+      "object_type": "delta_publication_proof",
+      "path": "schemas/publication-proof.schema.json",
+      "status": "draft"
+    },
+    {
+      "id": "https://delta-protocol.org/schemas/v2.6.1/trust-ledger.schema.json",
+      "object_type": "delta_trust_ledger",
+      "path": "schemas/trust-ledger.schema.json",
+      "status": "draft"
+    },
+    {
+      "id": "https://delta-protocol.org/schemas/v2.6.1/wallet-proof.schema.json",
+      "object_type": "delta_wallet_proof",
+      "path": "schemas/wallet-proof.schema.json",
+      "status": "draft"
+    }
+  ],
+  "security_boundary": "JSON Schema validation checks object shape only. A DELTA verifier MUST still perform canonical JSON validation, hash recomputation, signature verification, binding checks, replay/policy verification, and profile-specific wallet/audit/publication/trust checks.",
+  "title": "DELTA Schema Registry v2.6.1"
+}

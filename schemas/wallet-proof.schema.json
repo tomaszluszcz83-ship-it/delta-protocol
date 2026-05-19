@@ -1,0 +1,73 @@
+{
+  "$id": "https://delta-protocol.org/schemas/v2.6.1/wallet-proof.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "description": "Validation aid for DELTA wallet/address-control proof objects. It validates declared wallet proof structure only; cryptographic verification depends on the selected standard. Bitcoin external profile remains shape_only/external_pending with CRYPTO_SIGNATURE_VERIFIED=False.",
+  "properties": {
+    "challenge": {
+      "type": "object"
+    },
+    "created_at": {
+      "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/timestamp_string"
+    },
+    "proof_body": {
+      "additionalProperties": true,
+      "properties": {
+        "address": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "chain": {
+          "type": "string"
+        },
+        "challenge_hash": {
+          "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/sha256"
+        },
+        "record_hash": {
+          "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/sha256"
+        },
+        "signature": {
+          "type": "object"
+        },
+        "standard": {
+          "enum": [
+            "ed25519_address_control_v1",
+            "ethereum_eip191_personal_sign_v1",
+            "ethereum_eip712_typed_data_v1",
+            "bitcoin_bip322_external_v1"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "standard",
+        "chain",
+        "address"
+      ],
+      "type": "object"
+    },
+    "proof_body_hash": {
+      "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/sha256"
+    },
+    "schema_version": {
+      "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/delta_schema_version"
+    },
+    "target": {
+      "additionalProperties": true,
+      "properties": {
+        "record_hash": {
+          "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/sha256"
+        }
+      },
+      "type": "object"
+    },
+    "type": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "proof_body"
+  ],
+  "title": "DELTA Proof of Wallet Schema v2.6.1",
+  "type": "object"
+}

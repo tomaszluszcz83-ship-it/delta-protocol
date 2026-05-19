@@ -1,0 +1,34 @@
+{
+  "$defs": {
+    "delta_schema_version": {
+      "const": "2.6.1",
+      "type": "string"
+    },
+    "non_empty_string": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "protocol_version": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "public_key_hash": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "sha256": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "timestamp_string": {
+      "description": "Timestamp string. A future stricter profile may require RFC 3339 UTC.",
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "$id": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Shared JSON Schema definitions for DELTA Protocol v2.6.1. This file is a validation aid, not a substitute for cryptographic verification.",
+  "title": "DELTA Common Schema Definitions v2.6.1",
+  "type": "object"
+}

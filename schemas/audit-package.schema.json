@@ -1,0 +1,50 @@
+{
+  "$id": "https://delta-protocol.org/schemas/v2.6.1/audit-package.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "description": "Validation aid for encrypted audit packages. This schema checks package shape only; verifiers MUST check ciphertext hashes, AAD hashes, recipient key binding, and full record hash binding. Decryption is auditor-side.",
+  "properties": {
+    "audit_body_hash": {
+      "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/sha256"
+    },
+    "created_at": {
+      "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/timestamp_string"
+    },
+    "entries": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "package_id": {
+      "type": "string"
+    },
+    "recipient": {
+      "type": "object"
+    },
+    "schema_version": {
+      "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/delta_schema_version"
+    },
+    "target": {
+      "additionalProperties": true,
+      "properties": {
+        "record_hash": {
+          "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/sha256"
+        }
+      },
+      "required": [
+        "record_hash"
+      ],
+      "type": "object"
+    },
+    "type": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "target",
+    "entries"
+  ],
+  "title": "DELTA Proof of Audit Package Schema v2.6.1",
+  "type": "object"
+}

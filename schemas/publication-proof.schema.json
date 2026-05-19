@@ -1,0 +1,46 @@
+{
+  "$id": "https://delta-protocol.org/schemas/v2.6.1/publication-proof.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "description": "Validation aid for publication proof objects. It does not prove the truth of the underlying change; it validates the structure for a proof claiming that a record hash was published or externally anchored.",
+  "properties": {
+    "created_at": {
+      "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/timestamp_string"
+    },
+    "external_evidence": {
+      "type": "object"
+    },
+    "method": {
+      "type": "string"
+    },
+    "proof_body": {
+      "type": "object"
+    },
+    "proof_body_hash": {
+      "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/sha256"
+    },
+    "schema_version": {
+      "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/delta_schema_version"
+    },
+    "target": {
+      "additionalProperties": true,
+      "properties": {
+        "record_hash": {
+          "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/sha256"
+        }
+      },
+      "required": [
+        "record_hash"
+      ],
+      "type": "object"
+    },
+    "type": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "target"
+  ],
+  "title": "DELTA Proof of Publication Schema v2.6.1",
+  "type": "object"
+}

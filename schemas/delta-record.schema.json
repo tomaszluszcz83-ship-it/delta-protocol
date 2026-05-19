@@ -1,0 +1,43 @@
+{
+  "$id": "https://delta-protocol.org/schemas/v2.6.1/delta-record.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "description": "Top-level validation schema for signed DELTA sensor records / delta-record.json. This schema validates structure only; verifiers MUST still check canonical JSON, hashes, signatures, evidence commitments, replay output, and policy bindings.",
+  "properties": {
+    "created_at": {
+      "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/timestamp_string"
+    },
+    "executor_signature": {
+      "type": "object"
+    },
+    "public_key": {
+      "type": [
+        "string",
+        "object"
+      ]
+    },
+    "public_key_hash": {
+      "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/sha256"
+    },
+    "record_body": {
+      "type": "object"
+    },
+    "record_hash": {
+      "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/sha256"
+    },
+    "schema_version": {
+      "$ref": "https://delta-protocol.org/schemas/v2.6.1/delta-common.schema.json#/$defs/delta_schema_version"
+    },
+    "signature": {
+      "type": "object"
+    },
+    "type": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "record_body"
+  ],
+  "title": "DELTA Signed Sensor Record Schema v2.6.1",
+  "type": "object"
+}
