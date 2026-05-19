@@ -1,9 +1,9 @@
 {
   "name": "@delta-protocol/typescript-verifier",
-  "version": "2.9.2",
+  "version": "2.9.3",
   "private": true,
   "type": "module",
-  "description": "Experimental DELTA TypeScript verifier L0/L1 with JSON Schema and Ed25519 signed record verification",
+  "description": "Experimental DELTA TypeScript verifier with .delta bundle verification",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "verify-vectors": "tsc -p tsconfig.json && node dist/scripts/verify-vectors.js ../../tests/vectors/canonical-json/vectors.json",
@@ -12,14 +12,17 @@
     "validate-schema": "tsc -p tsconfig.json && node dist/scripts/validate-schema.js",
     "create-signed-record-demo": "tsc -p tsconfig.json && node dist/scripts/create-signed-record-demo.js",
     "verify-signed-record": "tsc -p tsconfig.json && node dist/scripts/verify-signed-record.js",
+    "verify-bundle": "tsc -p tsconfig.json && node dist/scripts/verify-bundle.js",
     "test": "npm run verify-vectors && npm run verify-schemas"
   },
   "dependencies": {
+    "adm-zip": "^0.5.17",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
+    "@types/adm-zip": "^0.5.8",
+    "@types/node": "^22.19.19",
     "typescript": "^5.7.2"
   },
   "engines": {

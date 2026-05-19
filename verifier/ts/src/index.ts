@@ -40,3 +40,13 @@ export {
   computeSignedRecordHash,
   verifySignedRecord
 } from "./signedRecordVerifier.js";
+
+export {
+  BUNDLE_PROFILE,
+  MANIFEST_NAME,
+  DeltaBundleVerifierError,
+  extractArtifactRefs,
+  hasForbiddenFilenameFragment,
+  normalizeEntryName,
+  verifyDeltaBundle
+} from "./bundleVerifier.js";

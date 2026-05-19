@@ -1,28 +1,32 @@
-# DELTA TypeScript Verifier v2.9.2
+# DELTA TypeScript Verifier v2.9.3
 
 Status: **experimental independent verifier**  
-Scope: **L0/L1 + schema pre-verification + Ed25519 signed record MVP**
+Scope: **L0/L1 + schema pre-verification + Ed25519 signed record MVP + `.delta` bundle verification**
 
 ## What this verifies
 
-v2.9.2 verifies:
+v2.9.3 verifies:
 
 - DELTA Canonical JSON Profile v1 subset,
 - SHA-256 over canonical bytes,
 - frozen canonical JSON vectors,
-- basic DELTA record required fields,
-- basic record hash recomputation,
+- basic DELTA record hash checks,
 - JSON Schema compilation and validation,
-- Ed25519 signed record verification for the v2.9.2 TypeScript MVP profile.
+- Ed25519 signed record verification for the v2.9.2 TypeScript MVP profile,
+- `.delta` ZIP bundle structure and manifest integrity.
 
-## Ed25519 signed record MVP profile
+## Bundle verification scope
 
-For v2.9.2, signed record verification is intentionally narrow:
+v2.9.3 checks:
 
-- `record_hash` is recomputed over the record with signature metadata fields removed,
-- Ed25519 signature is verified over the UTF-8 bytes of the declared `record_hash`,
-- `public_key_hash` is SHA-256 over the raw 32-byte Ed25519 public key,
-- this verifier does not claim compatibility with all historical Python record profiles.
+- ZIP can be opened,
+- `bundle_manifest.json` exists,
+- duplicate filenames are rejected,
+- path traversal is rejected,
+- forbidden sensitive filename fragments are rejected,
+- manifest-declared artifact SHA-256 hashes match,
+- manifest-declared artifact sizes match,
+- unreferenced artifacts are rejected.
 
 ## Commands
 
@@ -33,56 +37,43 @@ cd verifier/ts
 npm install
 ```
 
-Run canonical vectors:
+Run existing checks:
 
 ```bash
 npm run verify-vectors
-```
-
-Run schema compilation:
-
-```bash
 npm run verify-schemas
 ```
 
-Create a local signed record demo:
+Verify a `.delta` bundle:
 
 ```bash
-npm run create-signed-record-demo -- --out .delta/ts-signed-record-tests/R-292/signed-record.json
+npm run verify-bundle -- --bundle path/to/sample.delta
 ```
 
-Verify a signed record:
-
-```bash
-npm run verify-signed-record -- --record .delta/ts-signed-record-tests/R-292/signed-record.json
-```
-
-Expected output:
+Expected successful output:
 
 ```text
-DELTA_TS_SIGNED_RECORD_VERIFY_OK=True
-DELTA_TS_SIGNED_RECORD_SIGNATURE_OK=True
+DELTA_TS_BUNDLE_VERIFY_OK=True
 ```
 
 ## What this does not verify
 
-v2.9.2 does not verify:
+v2.9.3 does not verify:
 
+- signed bundle signatures,
 - Proof of Replay,
 - Proof of Intent authority or policy,
 - Proof of Audit encryption/decryption,
 - Proof of Publication anchoring truth,
 - Proof of Trust authority policy,
 - Proof of Wallet cryptographic profiles,
-- `.delta` bundles,
-- signed bundles,
 - Ethereum EIP-191/EIP-712,
 - Bitcoin BIP-322.
 
 ## Security boundary
 
-This verifier is experimental.
+Bundle verification proves only that the `.delta` ZIP container matches its public manifest and anti-leak guardrails.
 
-Ed25519 verification proves that a raw Ed25519 public key verified a signature over the declared record hash under the narrow v2.9.2 TypeScript MVP profile.
+It does not prove that contained proofs are cryptographically valid.
 
 It does not prove legal identity, signer authority, real-world truth, wallet ownership, regulatory compliance, or trust validity.
