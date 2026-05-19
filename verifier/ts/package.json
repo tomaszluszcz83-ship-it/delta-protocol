@@ -1,9 +1,9 @@
 {
   "name": "@delta-protocol/typescript-verifier",
-  "version": "2.9.4",
+  "version": "2.10.2",
   "private": true,
   "type": "module",
-  "description": "Experimental DELTA TypeScript verifier with signed bundle verification",
+  "description": "Experimental DELTA TypeScript verifier with machine-readable CLI JSON output",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "verify-vectors": "tsc -p tsconfig.json && node dist/scripts/verify-vectors.js ../../tests/vectors/canonical-json/vectors.json",
@@ -14,6 +14,9 @@
     "verify-signed-record": "tsc -p tsconfig.json && node dist/scripts/verify-signed-record.js",
     "verify-bundle": "tsc -p tsconfig.json && node dist/scripts/verify-bundle.js",
     "verify-signed-bundle": "tsc -p tsconfig.json && node dist/scripts/verify-signed-bundle.js",
+    "verify-signed-record-json": "tsc -p tsconfig.json && node dist/scripts/verify-signed-record-json.js",
+    "verify-bundle-json": "tsc -p tsconfig.json && node dist/scripts/verify-bundle-json.js",
+    "verify-signed-bundle-json": "tsc -p tsconfig.json && node dist/scripts/verify-signed-bundle-json.js",
     "test": "npm run verify-vectors && npm run verify-schemas"
   },
   "dependencies": {
