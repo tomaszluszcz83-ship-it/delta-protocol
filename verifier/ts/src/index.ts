@@ -50,3 +50,9 @@ export {
   normalizeEntryName,
   verifyDeltaBundle
 } from "./bundleVerifier.js";
+
+export {
+  SIGNED_BUNDLE_PROFILE,
+  DeltaSignedBundleVerifierError,
+  verifySignedBundle
+} from "./signedBundleVerifier.js";
