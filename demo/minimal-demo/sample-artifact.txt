@@ -1,0 +1,2 @@
+Hello DELTA.
+This is a minimal public tamper-detection demo artifact.
