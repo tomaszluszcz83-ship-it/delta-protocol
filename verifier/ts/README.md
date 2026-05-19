@@ -1,103 +1,88 @@
-# DELTA TypeScript Verifier v2.9.1
+# DELTA TypeScript Verifier v2.9.2
 
 Status: **experimental independent verifier**  
-Scope: **L0/L1 + schema pre-verification**
+Scope: **L0/L1 + schema pre-verification + Ed25519 signed record MVP**
 
 ## What this verifies
 
-v2.9.1 verifies:
+v2.9.2 verifies:
 
 - DELTA Canonical JSON Profile v1 subset,
 - SHA-256 over canonical bytes,
-- frozen canonical JSON vectors from `tests/vectors/canonical-json/vectors.json`,
+- frozen canonical JSON vectors,
 - basic DELTA record required fields,
-- basic record hash recomputation by removing `record_hash`,
-- JSON Schema compilation from the repository-local `schemas/` registry,
-- JSON Schema validation for selected proof artifacts.
+- basic record hash recomputation,
+- JSON Schema compilation and validation,
+- Ed25519 signed record verification for the v2.9.2 TypeScript MVP profile.
 
-## What this does not verify
+## Ed25519 signed record MVP profile
 
-v2.9.1 does not verify:
+For v2.9.2, signed record verification is intentionally narrow:
 
-- Ed25519 signatures,
-- Proof of Replay,
-- Proof of Intent cryptographic signatures,
-- Proof of Audit encryption/decryption,
-- Proof of Publication anchoring truth,
-- Proof of Trust authority policy,
-- Proof of Wallet cryptographic profile verification,
-- `.delta` bundles,
-- signed bundles,
-- Ethereum EIP-191/EIP-712,
-- Bitcoin BIP-322.
+- `record_hash` is recomputed over the record with signature metadata fields removed,
+- Ed25519 signature is verified over the UTF-8 bytes of the declared `record_hash`,
+- `public_key_hash` is SHA-256 over the raw 32-byte Ed25519 public key,
+- this verifier does not claim compatibility with all historical Python record profiles.
 
-Schema validation is a **pre-verification step only**.
+## Commands
 
-## Install
+Install:
 
 ```bash
 cd verifier/ts
 npm install
 ```
 
-## Run L0 vectors
+Run canonical vectors:
 
 ```bash
 npm run verify-vectors
 ```
 
-Expected final output:
-
-```text
-DELTA_TS_VERIFY_OK=True
-```
-
-## Compile schemas
+Run schema compilation:
 
 ```bash
 npm run verify-schemas
 ```
 
-Expected final output:
-
-```text
-DELTA_TS_SCHEMA_VERIFY_OK=True
-```
-
-## Validate a file against a named schema
+Create a local signed record demo:
 
 ```bash
-npm run validate-schema -- --schema delta-record --file path/to/delta-record.json
+npm run create-signed-record-demo -- --out .delta/ts-signed-record-tests/R-292/signed-record.json
 ```
 
-Supported schema names:
+Verify a signed record:
+
+```bash
+npm run verify-signed-record -- --record .delta/ts-signed-record-tests/R-292/signed-record.json
+```
+
+Expected output:
 
 ```text
-delta-common
-delta-record
-intent-attestation
-audit-package
-publication-proof
-trust-ledger
-wallet-proof
-schema-registry
+DELTA_TS_SIGNED_RECORD_VERIFY_OK=True
+DELTA_TS_SIGNED_RECORD_SIGNATURE_OK=True
 ```
+
+## What this does not verify
+
+v2.9.2 does not verify:
+
+- Proof of Replay,
+- Proof of Intent authority or policy,
+- Proof of Audit encryption/decryption,
+- Proof of Publication anchoring truth,
+- Proof of Trust authority policy,
+- Proof of Wallet cryptographic profiles,
+- `.delta` bundles,
+- signed bundles,
+- Ethereum EIP-191/EIP-712,
+- Bitcoin BIP-322.
 
 ## Security boundary
 
 This verifier is experimental.
 
-JSON Schema validation does not prove:
+Ed25519 verification proves that a raw Ed25519 public key verified a signature over the declared record hash under the narrow v2.9.2 TypeScript MVP profile.
 
-- hash correctness,
-- canonical JSON correctness,
-- signature correctness,
-- replay correctness,
-- intent authority,
-- audit evidence truth,
-- publication truth,
-- wallet ownership,
-- legal truth,
-- regulatory compliance.
-
-Schema validation only checks that JSON shape is compatible with a declared schema.
+It does not prove legal identity, signer authority, real-world truth, wallet ownership, regulatory compliance, or trust validity.
