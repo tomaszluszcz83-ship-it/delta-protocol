@@ -1,0 +1,20 @@
+{
+  "name": "@delta-protocol/typescript-verifier",
+  "version": "2.9.0",
+  "private": true,
+  "type": "module",
+  "description": "Experimental DELTA TypeScript verifier L0/L1",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "verify-vectors": "tsc -p tsconfig.json && node dist/scripts/verify-vectors.js ../../tests/vectors/canonical-json/vectors.json",
+    "verify-record": "tsc -p tsconfig.json && node dist/scripts/verify-record.js",
+    "test": "npm run verify-vectors"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
