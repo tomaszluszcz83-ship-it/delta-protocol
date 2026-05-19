@@ -64,6 +64,12 @@ export {
 } from "./intentRegistryVerifier.js";
 
 export {
+  INTENT_POLICY_PROFILE,
+  DeltaIntentPolicyVerifierError,
+  verifyIntentPolicy
+} from "./intentPolicyVerifier.js";
+
+export {
   INTENT_VERIFIER_PROFILE,
   DeltaIntentVerifierError,
   computeIntentCanonicalHashFromObject,

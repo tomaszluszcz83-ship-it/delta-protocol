@@ -7,11 +7,23 @@ import {
   type IntentRegistryVerificationResult,
   type IntentRegistryVerificationStatus
 } from "./intentRegistryVerifier.js";
+import {
+  verifyIntentPolicy,
+  type IntentPolicyVerificationResult,
+  type IntentPolicyVerificationStatus
+} from "./intentPolicyVerifier.js";
 
-export const INTENT_VERIFIER_PROFILE = "delta_typescript_intent_verifier_mvp_v2_12_2";
+export const INTENT_VERIFIER_PROFILE = "delta_typescript_intent_verifier_mvp_v2_12_3";
 
 export type RecordHashBindingMethod = "file_sha256" | "canonical_json_sha256" | null;
 export type IntentSignatureVerificationStatus = "NOT_PROVIDED" | "VERIFIED" | "INVALID";
+
+export interface IntentVerificationOptions {
+  signaturePath?: string | undefined;
+  registryPath?: string | undefined;
+  policyPath?: string | undefined;
+  now?: string | null | undefined;
+}
 
 export interface IntentVerificationResult {
   ok: boolean;
@@ -20,6 +32,7 @@ export interface IntentVerificationResult {
   intentPath: string;
   signaturePath: string | null;
   registryPath: string | null;
+  policyPath: string | null;
   intentFileOk: boolean;
   recordFileOk: boolean;
   declaredRecordHash: string | null;
@@ -30,6 +43,8 @@ export interface IntentVerificationResult {
   intentStatus: string | null;
   intentProfile: string | null;
   intentPurpose: string | null;
+  intentPolicyId: string | null;
+  intentDeadline: string | null;
   computedIntentCanonicalHash: string | null;
   signatureFileOk: boolean | null;
   declaredIntentHash: string | null;
@@ -46,6 +61,8 @@ export interface IntentVerificationResult {
   signatureVerificationStatus: IntentSignatureVerificationStatus;
   registryVerificationStatus: IntentRegistryVerificationStatus;
   registryResult: IntentRegistryVerificationResult | null;
+  policyVerificationStatus: IntentPolicyVerificationStatus;
+  policyResult: IntentPolicyVerificationResult | null;
   errors: string[];
   warnings: string[];
 }
@@ -316,9 +333,25 @@ function verifyDetachedIntentSignature(
 export function verifyIntentBinding(
   recordPath: string,
   intentPath: string,
-  signaturePath?: string,
-  registryPath?: string
+  signaturePathOrOptions?: string | IntentVerificationOptions,
+  registryPath?: string,
+  policyPath?: string,
+  now?: string | null
 ): IntentVerificationResult {
+  const options: IntentVerificationOptions =
+    typeof signaturePathOrOptions === "object" && signaturePathOrOptions !== null
+      ? signaturePathOrOptions
+      : {
+          signaturePath: signaturePathOrOptions,
+          registryPath,
+          policyPath,
+          now
+        };
+
+  const signaturePath = options.signaturePath;
+  const effectiveRegistryPath = options.registryPath;
+  const effectivePolicyPath = options.policyPath;
+
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -409,6 +442,24 @@ export function verifyIntentBinding(
       findStringRecursive(intent, ["intent_purpose"])
     : null;
 
+  const intentPolicyId = intent
+    ? getString(intent, "policy_id") ??
+      getString(intent, "intent_policy_id") ??
+      getString(intentBody, "policy_id") ??
+      getString(intentBody, "intent_policy_id") ??
+      findStringRecursive(intent, ["policy_id", "intent_policy_id"])
+    : null;
+
+  const intentDeadline = intent
+    ? getString(intent, "intent_deadline") ??
+      getString(intent, "deadline") ??
+      getString(intent, "not_after") ??
+      getString(intentBody, "intent_deadline") ??
+      getString(intentBody, "deadline") ??
+      getString(intentBody, "not_after") ??
+      findStringRecursive(intent, ["intent_deadline", "deadline", "not_after", "valid_until"])
+    : null;
+
   let signatureFileOk: boolean | null = null;
   let declaredIntentHash: string | null = null;
   let intentHashBindingOk: boolean | null = null;
@@ -461,13 +512,13 @@ export function verifyIntentBinding(
   let registryResult: IntentRegistryVerificationResult | null = null;
   let registryVerificationStatus: IntentRegistryVerificationStatus = "NOT_PROVIDED";
 
-  if (registryPath) {
+  if (effectiveRegistryPath) {
     if (!signaturePath) {
       errors.push("intent_registry_requires_detached_signature");
       registryVerificationStatus = "INVALID";
     } else {
       registryResult = verifyIntentRegistryBinding({
-        registryPath,
+        registryPath: effectiveRegistryPath,
         signerLabel,
         signerPublicKey,
         signerPublicKeyHash
@@ -484,6 +535,27 @@ export function verifyIntentBinding(
     }
   }
 
+  let policyResult: IntentPolicyVerificationResult | null = null;
+  let policyVerificationStatus: IntentPolicyVerificationStatus = "NOT_PROVIDED";
+
+  if (effectivePolicyPath) {
+    policyResult = verifyIntentPolicy({
+      policyPath: effectivePolicyPath,
+      intentPolicyId,
+      intentDeadline,
+      now: options.now
+    });
+
+    policyVerificationStatus = policyResult.policyVerificationStatus;
+
+    for (const policyError of policyResult.errors) {
+      errors.push(`intent_policy:${policyError}`);
+    }
+    for (const policyWarning of policyResult.warnings) {
+      warnings.push(`intent_policy:${policyWarning}`);
+    }
+  }
+
   const signatureRequiredOk =
     !signaturePath ||
     (
@@ -496,10 +568,14 @@ export function verifyIntentBinding(
     );
 
   const registryRequiredOk =
-    !registryPath ||
+    !effectiveRegistryPath ||
     registryVerificationStatus === "VERIFIED";
 
-  const ok = intentFileOk && recordFileOk && recordHashBindingOk && signatureRequiredOk && registryRequiredOk;
+  const policyRequiredOk =
+    !effectivePolicyPath ||
+    policyVerificationStatus === "SATISFIED";
+
+  const ok = intentFileOk && recordFileOk && recordHashBindingOk && signatureRequiredOk && registryRequiredOk && policyRequiredOk;
 
   return {
     ok,
@@ -507,7 +583,8 @@ export function verifyIntentBinding(
     recordPath,
     intentPath,
     signaturePath: signaturePath ?? null,
-    registryPath: registryPath ?? null,
+    registryPath: effectiveRegistryPath ?? null,
+    policyPath: effectivePolicyPath ?? null,
     intentFileOk,
     recordFileOk,
     declaredRecordHash,
@@ -518,6 +595,8 @@ export function verifyIntentBinding(
     intentStatus,
     intentProfile,
     intentPurpose,
+    intentPolicyId,
+    intentDeadline,
     computedIntentCanonicalHash,
     signatureFileOk,
     declaredIntentHash,
@@ -534,6 +613,8 @@ export function verifyIntentBinding(
     signatureVerificationStatus,
     registryVerificationStatus,
     registryResult,
+    policyVerificationStatus,
+    policyResult,
     errors,
     warnings
   };

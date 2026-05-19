@@ -1,9 +1,9 @@
 {
   "name": "@delta-protocol/typescript-verifier",
-  "version": "2.12.2",
+  "version": "2.12.3",
   "private": true,
   "type": "module",
-  "description": "Experimental DELTA TypeScript verifier with intent registry public key binding",
+  "description": "Experimental DELTA TypeScript verifier with intent policy and deadline checks",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "verify-vectors": "tsc -p tsconfig.json && node dist/scripts/verify-vectors.js ../../tests/vectors/canonical-json/vectors.json",
