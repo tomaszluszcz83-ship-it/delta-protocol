@@ -1,17 +1,14 @@
-# DELTA Protocol byte-stability policy.
-#
-# DELTA public verifiers hash exact bytes.
-# Therefore this repository disables Git CRLF/LF normalization globally.
-#
-# No file in this repository should be rewritten by Git line-ending conversion.
+# DELTA byte-stability rules for public demo artifacts and CI workflows.
+# These files must remain byte-stable across Windows, Linux, macOS,
+# local checkout, and GitHub Actions execution.
 
-* -text
+demo/minimal-demo/sample-artifact.txt text eol=lf
+demo/minimal-demo/sample-artifact.sha256 text eol=lf
+demo/minimal-demo/demo-manifest.json text eol=lf
+demo/minimal-demo/README.md text eol=lf
+demo/minimal-demo/verify.ps1 text eol=lf
+demo/minimal-demo/tamper-test.sh text eol=lf
 
-*.png binary
-*.jpg binary
-*.jpeg binary
-*.gif binary
-*.webp binary
-*.zip binary
-*.ico binary
-*.pdf binary
+.github/workflows/delta-minimal-demo.yml text eol=lf
+docs/integrations/github-actions-demo-workflow-v2.16.7.md text eol=lf
+docs/changelog/v2.16.7-github-actions-demo-workflow.md text eol=lf

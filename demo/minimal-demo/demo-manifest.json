@@ -1,16 +1,8 @@
 {
-  "demo_profile": "delta_minimal_public_tamper_demo_v1",
-  "delta_release": "v2.16.6-minimal-public-demo-artifact",
-  "purpose": "Educational public demonstration of hash-based tamper detection. This is not a signed DELTA bundle and is not a substitute for full DELTA verification.",
-  "artifact": {
-    "path": "sample-artifact.txt",
-    "sha256": "29167171bdf30c5e9cbfa7cf2c7b389b30646e9187535f3ad944e65d96e3cc83",
-    "tamper_method": "append one space to a temporary working copy"
-  },
-  "security_boundary": {
-    "not_a_signed_bundle": true,
-    "not_a_proof_of_legal_identity": true,
-    "not_a_proof_of_real_world_truth": true,
-    "intended_use": "first two-minute reviewer demonstration before reading deeper DELTA RFC and verifier documentation"
-  }
+  "demo_profile": "delta_minimal_public_demo_v1",
+  "version": "2.16.7",
+  "artifact": "sample-artifact.txt",
+  "artifact_sha256": "26C6A2D14E4F1FF7BF9426B46187F7131EC6008253E373944669F9D2AFD22FB8",
+  "purpose": "Minimal public tamper-detection walkthrough",
+  "security_boundary": "Hash-based educational demo only; not full signed DELTA bundle verification."
 }
