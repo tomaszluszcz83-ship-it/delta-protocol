@@ -553,3 +553,10 @@ No new cryptographic features
 ## License
 
 License information is defined by the repository license file if present.
+
+
+## Public readiness test status
+
+- **DELTA Public Extreme Test:** [`docs/review/DELTA_PUBLIC_EXTREME_TEST.md`](docs/review/DELTA_PUBLIC_EXTREME_TEST.md)
+- **Latest local result:** `DELTA_PUBLIC_EXTREME_TEST_OK=True`
+- **Scope:** local public-readiness and regression test; not a security audit, certification, legal validation, compliance statement, or production-readiness guarantee.
