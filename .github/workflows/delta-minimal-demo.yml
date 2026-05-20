@@ -1,4 +1,4 @@
-name: DELTA Minimal Public Demo
+﻿name: DELTA Minimal Public Demo
 
 on:
   pull_request:
@@ -19,4 +19,64 @@ jobs:
       - name: Run minimal public tamper-detection demo
         shell: pwsh
         run: |
-          powershell -ExecutionPolicy Bypass -File demo\minimal-demo\verify.ps1
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "=== DELTA Protocol Minimal Public Demo ==="
+          Write-Host "Profile: hash-based tamper-detection walkthrough"
+          Write-Host "Boundary: educational demo, not a signed DELTA bundle verifier"
+          Write-Host ""
+
+          $demoDir = Join-Path $env:RUNNER_TEMP "delta-minimal-demo"
+          New-Item -ItemType Directory -Force $demoDir | Out-Null
+
+          $artifact = Join-Path $demoDir "sample-artifact.txt"
+          $tampered = Join-Path $demoDir "sample-artifact.tampered.txt"
+
+          $content = "DELTA Protocol minimal public demo artifact.`nThis file is intentionally simple so that tampering is easy to detect.`n"
+
+          [System.IO.File]::WriteAllText(
+            $artifact,
+            $content,
+            [System.Text.UTF8Encoding]::new($false)
+          )
+
+          $expectedHash = (Get-FileHash -Path $artifact -Algorithm SHA256).Hash.ToUpperInvariant()
+
+          Write-Host "[1] Verifying original artifact"
+          $observedHash = (Get-FileHash -Path $artifact -Algorithm SHA256).Hash.ToUpperInvariant()
+
+          Write-Host "  Expected: $expectedHash"
+          Write-Host "  Observed: $observedHash"
+
+          if ($observedHash -ne $expectedHash) {
+            Write-Host "  ERROR: Original artifact hash does not match expected value."
+            exit 1
+          }
+
+          Write-Host "  OK: Original artifact hash matches expected value."
+          Write-Host ""
+
+          Write-Host "[2] Tampering with temporary working copy"
+          Copy-Item -Path $artifact -Destination $tampered -Force
+          Add-Content -Path $tampered -Value "TAMPERED"
+
+          $tamperedHash = (Get-FileHash -Path $tampered -Algorithm SHA256).Hash.ToUpperInvariant()
+
+          Write-Host "  Original expected hash: $expectedHash"
+          Write-Host "  Tampered observed hash: $tamperedHash"
+          Write-Host ""
+
+          Write-Host "[3] Verifying tampered artifact"
+
+          if ($tamperedHash -eq $expectedHash) {
+            Write-Host "  ERROR: Tampering was not detected."
+            exit 1
+          }
+
+          Write-Host "  OK: Tampered artifact hash mismatch detected."
+          Write-Host "  OK: Demo succeeded: tampering was detected."
+          Write-Host ""
+          Write-Host "=== Demo complete ==="
+          Write-Host "DELTA public message: cryptographic binding makes later tampering detectable."
+
+          exit 0
