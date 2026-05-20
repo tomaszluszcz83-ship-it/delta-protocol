@@ -15,3 +15,17 @@
 *.zip binary
 *.ico binary
 *.pdf binary
+# DELTA minimal public demo byte-stability rules.
+# These files must remain byte-stable across Windows, Linux, macOS,
+# local checkout, and GitHub Actions execution.
+
+demo/minimal-demo/sample-artifact.txt text eol=lf
+demo/minimal-demo/sample-artifact.sha256 text eol=lf
+demo/minimal-demo/demo-manifest.json text eol=lf
+demo/minimal-demo/README.md text eol=lf
+demo/minimal-demo/verify.ps1 text eol=lf
+demo/minimal-demo/tamper-test.sh text eol=lf
+
+.github/workflows/delta-minimal-demo.yml text eol=lf
+docs/integrations/github-actions-demo-workflow-v2.16.7.md text eol=lf
+docs/changelog/v2.16.7-github-actions-demo-workflow.md text eol=lf
