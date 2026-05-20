@@ -12,6 +12,7 @@ New reviewers, developers, auditors, CI/CD maintainers, software supply-chain en
 - **Run the minimal local demo:** [`demo/minimal-demo/`](demo/minimal-demo/)
 - **Watch automated tamper detection in CI:** [`.github/workflows/delta-minimal-demo.yml`](.github/workflows/delta-minimal-demo.yml)
 - **Read the quick-start path:** [`docs/quickstart/quickstart-v2.16.2.md`](docs/quickstart/quickstart-v2.16.2.md)
+- **Review DELTA in 10 Minutes:** [`docs/review/REVIEW_DELTA_IN_10_MINUTES.md`](docs/review/REVIEW_DELTA_IN_10_MINUTES.md)
 - **Review the protocol methodically:** [`docs/review/REVIEWER_CHECKLIST.md`](docs/review/REVIEWER_CHECKLIST.md)
 - **Submit external review feedback:** [`docs/review/EXTERNAL_REVIEW_REQUEST.md`](docs/review/EXTERNAL_REVIEW_REQUEST.md)
 
