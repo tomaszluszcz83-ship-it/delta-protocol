@@ -1,98 +1,73 @@
-# DELTA Minimal Public Demo — Tamper Detection Walkthrough
-# This script demonstrates the most basic public-facing tamper-evidence principle:
-# 1. Verify that a known artifact matches its expected SHA-256 digest.
-# 2. Copy the artifact to a temporary working area.
-# 3. Tamper with the temporary copy.
-# 4. Verify that the tampered copy no longer matches the expected digest.
-#
-# Security boundary:
-# This is an educational onboarding demo. It is not a signed DELTA bundle verifier
-# and it is not a substitute for full DELTA proof verification.
-
 $ErrorActionPreference = "Stop"
 
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$RepoRoot = Resolve-Path (Join-Path $ScriptDir "..\..")
-$ArtifactPath = Join-Path $ScriptDir "sample-artifact.txt"
-$ExpectedHashPath = Join-Path $ScriptDir "sample-artifact.sha256"
-$RunDir = Join-Path $ScriptDir ".demo-run"
-$WorkingArtifact = Join-Path $RunDir "sample-artifact.txt"
+$demoDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$artifactPath = Join-Path $demoDir "sample-artifact.txt"
+$hashPath = Join-Path $demoDir "sample-artifact.sha256"
+$runDir = Join-Path $demoDir ".demo-run"
+$workingCopy = Join-Path $runDir "sample-artifact.tampered.txt"
 
-function Write-Step($Message) {
-    Write-Host ""
-    Write-Host $Message -ForegroundColor Cyan
-}
-
-function Get-ExpectedHash {
-    $line = Get-Content -Path $ExpectedHashPath -TotalCount 1
-    return ($line -split "\s+")[0].Trim().ToUpperInvariant()
-}
-
-function Get-Sha256($Path) {
-    return (Get-FileHash -Path $Path -Algorithm SHA256).Hash.ToUpperInvariant()
-}
-
-Write-Host "=== DELTA Protocol Minimal Public Demo ===" -ForegroundColor Cyan
-Write-Host "Profile: hash-based tamper-detection walkthrough" -ForegroundColor Gray
-Write-Host "Boundary: educational demo, not a signed DELTA bundle verifier" -ForegroundColor Gray
-
-if (-not (Test-Path $ArtifactPath)) {
-    Write-Host "[FAIL] Missing sample artifact: $ArtifactPath" -ForegroundColor Red
-    exit 1
-}
-
-if (-not (Test-Path $ExpectedHashPath)) {
-    Write-Host "[FAIL] Missing expected hash file: $ExpectedHashPath" -ForegroundColor Red
-    exit 1
-}
-
-if (Test-Path $RunDir) {
-    Remove-Item -Recurse -Force $RunDir
-}
-New-Item -ItemType Directory -Force $RunDir | Out-Null
-Copy-Item -Path $ArtifactPath -Destination $WorkingArtifact -Force
-
-$ExpectedHash = Get-ExpectedHash
-
-Write-Step "[1] Verifying original artifact"
-$OriginalHash = Get-Sha256 $WorkingArtifact
-
-Write-Host "  Expected: $ExpectedHash" -ForegroundColor Gray
-Write-Host "  Observed: $OriginalHash" -ForegroundColor Gray
-
-if ($OriginalHash -eq $ExpectedHash) {
-    Write-Host "  [OK] Original artifact hash matches expected value." -ForegroundColor Green
-} else {
-    Write-Host "  [FAIL] Original artifact hash mismatch." -ForegroundColor Red
-    exit 1
-}
-
-Write-Step "[2] Tampering with temporary working copy"
-Add-Content -Path $WorkingArtifact -Value " " -NoNewline
-$TamperedHash = Get-Sha256 $WorkingArtifact
-
-Write-Host "  Original expected hash: $ExpectedHash" -ForegroundColor Gray
-Write-Host "  Tampered observed hash: $TamperedHash" -ForegroundColor Gray
-
-Write-Step "[3] Verifying tampered artifact"
-if ($TamperedHash -ne $ExpectedHash) {
-    Write-Host "  [FAIL] Tampered artifact hash mismatch detected." -ForegroundColor Red
-    Write-Host "  [OK] Demo succeeded: tampering was detected." -ForegroundColor Green
-} else {
-    Write-Host "  [FAIL] Unexpected: tampered artifact still matches expected hash." -ForegroundColor Red
-    exit 1
-}
-
-Write-Step "[4] Optional full DELTA baseline command"
-$DeltaCli = Join-Path $RepoRoot "src\delta_cli.py"
-if (Test-Path $DeltaCli) {
-    Write-Host "  Repository root detected: $RepoRoot" -ForegroundColor Gray
-    Write-Host "  Full reference verification command:" -ForegroundColor Gray
-    Write-Host "  python src/delta_cli.py verify-all" -ForegroundColor Yellow
-} else {
-    Write-Host "  Full DELTA repository root was not detected from this location." -ForegroundColor Yellow
-}
-
+Write-Host "=== DELTA Protocol Minimal Public Demo ==="
+Write-Host "Profile: hash-based tamper-detection walkthrough"
+Write-Host "Boundary: educational demo, not a signed DELTA bundle verifier"
 Write-Host ""
-Write-Host "=== Demo complete ===" -ForegroundColor Cyan
-Write-Host "DELTA public message: cryptographic binding makes later tampering detectable." -ForegroundColor Cyan
+
+if (!(Test-Path $artifactPath)) {
+    Write-Host "[FAIL] Missing sample artifact." -ForegroundColor Red
+    exit 1
+}
+
+if (!(Test-Path $hashPath)) {
+    Write-Host "[FAIL] Missing declared SHA-256 file." -ForegroundColor Red
+    exit 1
+}
+
+$expectedHash = ((Get-Content -Raw $hashPath) -replace "\s+", "").ToUpperInvariant()
+$observedHash = (Get-FileHash -Path $artifactPath -Algorithm SHA256).Hash.ToUpperInvariant()
+
+Write-Host "[1] Verifying original artifact"
+Write-Host "  Expected: $expectedHash"
+Write-Host "  Observed: $observedHash"
+
+if ($expectedHash -ne $observedHash) {
+    Write-Host "  [FAIL] Original artifact hash does not match expected value." -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "  [OK] Original artifact hash matches expected value." -ForegroundColor Green
+Write-Host ""
+
+if (Test-Path $runDir) {
+    Remove-Item -Recurse -Force $runDir
+}
+
+New-Item -ItemType Directory -Force $runDir | Out-Null
+Copy-Item -Path $artifactPath -Destination $workingCopy -Force
+
+Write-Host "[2] Tampering with temporary working copy"
+
+# Write bytes explicitly to avoid shell-dependent newline behavior.
+[System.IO.File]::AppendAllText($workingCopy, "TAMPERED", [System.Text.Encoding]::UTF8)
+
+$tamperedHash = (Get-FileHash -Path $workingCopy -Algorithm SHA256).Hash.ToUpperInvariant()
+
+Write-Host "  Original expected hash: $expectedHash"
+Write-Host "  Tampered observed hash: $tamperedHash"
+Write-Host ""
+
+Write-Host "[3] Verifying tampered artifact"
+
+if ($tamperedHash -eq $expectedHash) {
+    Write-Host "  [FAIL] Tampering was not detected." -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "  [FAIL] Tampered artifact hash mismatch detected." -ForegroundColor Red
+Write-Host "  [OK] Demo succeeded: tampering was detected." -ForegroundColor Green
+Write-Host ""
+
+Remove-Item -Recurse -Force $runDir -ErrorAction SilentlyContinue
+
+Write-Host "=== Demo complete ==="
+Write-Host "DELTA public message: cryptographic binding makes later tampering detectable."
+
+exit 0

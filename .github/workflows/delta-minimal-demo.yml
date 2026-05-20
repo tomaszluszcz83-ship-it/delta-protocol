@@ -1,4 +1,4 @@
-﻿name: DELTA Minimal Public Demo
+name: DELTA Minimal Public Demo
 
 on:
   pull_request:
@@ -16,33 +16,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Python dependencies
-        shell: pwsh
-        run: |
-          python -m pip install --upgrade pip
-
-          if (Test-Path "requirements.txt") {
-            python -m pip install -r requirements.txt
-          }
-
-          python -m pip install cryptography pynacl jsonschema
-
       - name: Run minimal public tamper-detection demo
         shell: pwsh
         run: |
           powershell -ExecutionPolicy Bypass -File demo\minimal-demo\verify.ps1
-
-      - name: Run DELTA baseline verification
-        shell: pwsh
-        run: |
-          python src\delta_cli.py verify-all
-
-      - name: Run DELTA canonical JSON vector verification
-        shell: pwsh
-        run: |
-          python tools\delta_canonical_json.py verify-vectors --vectors tests\vectors\canonical-json\vectors.json

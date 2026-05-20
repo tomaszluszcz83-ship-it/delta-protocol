@@ -1,2 +1,2 @@
-Hello DELTA.
-This is a minimal public tamper-detection demo artifact.
+DELTA Protocol minimal public demo artifact.
+This file is intentionally simple so that tampering is easy to detect.
