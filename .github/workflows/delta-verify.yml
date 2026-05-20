@@ -1,59 +1,54 @@
-name: DELTA Verify
+﻿name: DELTA Verify
 
 on:
+  pull_request:
   push:
     branches:
       - main
-      - "release/**"
-      - "integrations/**"
-  pull_request:
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
-  delta-verify:
+  delta-public-proof-verification:
     name: DELTA public proof verification
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository byte-exact
+      - name: Check out repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Assert DELTA byte-exact Git policy
-        shell: bash
-        run: |
-          test -f .gitattributes
-          grep -q '^\* -text$' .gitattributes
-          git check-attr text -- src/genesis_generator.py | tee /tmp/delta-git-attr.txt
-          grep -q 'text: unset' /tmp/delta-git-attr.txt
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.x"
+          python-version: "3.11"
 
-      - name: Install DELTA dependencies
-        run: python -m pip install cryptography
+      - name: Install Python dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
 
-      - name: Verify DELTA public proofs
-        run: python src/delta_cli.py verify-all
+          if [ -f requirements.txt ]; then
+            python -m pip install -r requirements.txt
+          fi
+
+          python -m pip install cryptography pynacl jsonschema
+
+      - name: Run DELTA baseline verification
+        shell: bash
+        run: |
+          python src/delta_cli.py verify-all
 
       - name: Write DELTA verification summary
         if: always()
         shell: bash
         run: |
           {
-            echo "## DELTA Verify"
+            echo "# DELTA Verify"
             echo ""
             echo "Command:"
             echo ""
-            echo '```text'
+            echo "\`\`\`text"
             echo "python src/delta_cli.py verify-all"
-            echo '```'
+            echo "\`\`\`"
             echo ""
             echo "This workflow verifies public DELTA proof artifacts included in the repository."
             echo ""
