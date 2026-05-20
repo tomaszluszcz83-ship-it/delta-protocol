@@ -1,0 +1,52 @@
+name: DELTA Minimal Public Demo
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "demo/minimal-demo/**"
+      - ".github/workflows/delta-minimal-demo.yml"
+      - "src/**"
+      - "tools/**"
+      - "tests/vectors/canonical-json/**"
+  push:
+    branches:
+      - main
+    paths:
+      - "demo/minimal-demo/**"
+      - ".github/workflows/delta-minimal-demo.yml"
+      - "src/**"
+      - "tools/**"
+      - "tests/vectors/canonical-json/**"
+
+permissions:
+  contents: read
+
+jobs:
+  minimal-public-demo:
+    name: Minimal tamper-detection demo
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run minimal public tamper-detection demo
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File demo\minimal-demo\verify.ps1
+
+      - name: Run DELTA baseline verification
+        shell: pwsh
+        run: |
+          python src\delta_cli.py verify-all
+
+      - name: Run DELTA Canonical JSON vector verification
+        shell: pwsh
+        run: |
+          python tools\delta_canonical_json.py verify-vectors --vectors tests\vectors\canonical-json\vectors.json
