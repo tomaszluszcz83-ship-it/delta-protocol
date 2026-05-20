@@ -1,57 +1,55 @@
 # DELTA v2.16.7 — GitHub Actions Demo Workflow
 
-## Executive summary
+## Purpose
 
-This document describes the first GitHub Actions demonstration workflow for DELTA Protocol.
+This document describes the minimal GitHub Actions demonstration workflow introduced in DELTA v2.16.7.
 
-The workflow is intentionally narrow and public-facing. Its purpose is to turn the minimal public tamper-detection artifact introduced in v2.16.6 into an automated CI signal that external reviewers, developers, auditors, and early adopters can observe directly in GitHub.
-
-The workflow does not claim to be a complete production DELTA verifier. It automates a deliberately scoped demonstration:
+The workflow is intentionally narrow, deterministic, and independent of the full DELTA reference implementation. Its only purpose is to demonstrate the foundational tamper-detection intuition behind Proof of Change in a public CI environment:
 
 ```text
-checkout repository → run minimal demo → verify expected hash → tamper artifact → detect mismatch → run baseline DELTA verification → run canonical JSON vector checks
+known artifact bytes → verification OK → tamper → hash mismatch → verification FAIL
 ```
 
-## Added workflow
+The check passes only if the workflow successfully detects that the tampered artifact has a different SHA-256 hash from the original artifact.
 
-The workflow is located at:
+## Why the workflow is intentionally minimal
 
-```text
-.github/workflows/delta-minimal-demo.yml
-```
+Earlier public-adoption milestones already document DELTA’s broader proof model, review process, quick-start path, and local tamper-detection walkthrough.
 
-## What the workflow does
+This workflow is not intended to replace full DELTA verification.
 
-The workflow performs three public-facing checks:
+Instead, it creates a stable CI-visible demonstration that external readers can understand quickly without needing Python dependencies, PowerShell behavior assumptions, local checkout line-ending behavior, or platform-specific scripts.
 
-1. runs the minimal public tamper-detection demonstration from `demo/minimal-demo/verify.ps1`;
-2. runs the Python reference baseline verification with `python src/delta_cli.py verify-all`;
-3. runs Canonical JSON / JCS vector verification with `python tools/delta_canonical_json.py verify-vectors --vectors tests/vectors/canonical-json/vectors.json`.
+## Runtime profile
 
-## Why this matters
+The workflow uses:
 
-v2.16.6 made DELTA demonstrable locally.
-
-v2.16.7 makes that demonstration visible in a standard CI environment.
-
-This is strategically important because public adoption depends on more than documentation. A reviewer should be able to see that the project can run a basic tamper-detection demonstration and core verification checks automatically in a normal repository workflow.
-
-## Trigger model
-
-The workflow runs on:
-
-- manual `workflow_dispatch`,
-- pull requests touching the demo, workflow, tools, source, or canonical JSON vectors,
-- pushes to `main` touching the same relevant paths.
-
-This keeps the workflow focused on the material it is intended to demonstrate.
+- `ubuntu-latest`,
+- standard `bash`,
+- `sha256sum`,
+- temporary runner-local files,
+- no Python dependencies,
+- no private keys,
+- no external services,
+- no blockchain infrastructure,
+- no native token,
+- no SaaS account,
+- no marketplace component.
 
 ## Security boundary
 
-This workflow is not a production certification system.
+This workflow does not claim to perform full DELTA signed bundle verification.
 
-It does not prove:
+It does not verify:
 
+- Ed25519 signatures,
+- signed `.delta` bundles,
+- full record chains,
+- Proof of Intent,
+- Proof of Audit,
+- Proof of Publication,
+- Proof of Trust,
+- wallet proofs,
 - legal identity,
 - signer authority,
 - regulatory compliance,
@@ -59,40 +57,39 @@ It does not prove:
 - sensor honesty,
 - evidence completeness,
 - policy correctness,
+- legal validity,
 - institutional approval,
-- or business authority.
+- business authority.
 
-The workflow demonstrates that the minimal public demo detects tampering and that the existing baseline verification commands continue to execute successfully in CI.
-
-It does not replace full signed bundle verification, Proof of Intent verification, Proof of Audit verification, Proof of Publication verification, Proof of Trust verification, wallet proof verification, or future ZK verification.
-
-## Expected result
-
-A successful workflow run should show:
+It demonstrates exactly one foundational property:
 
 ```text
-[OK] Original artifact hash matches expected value.
-[FAIL] Tampered artifact hash mismatch detected.
-[OK] Demo succeeded: tampering was detected.
-DELTA CLI RESULT: OK
-DELTA_JCS_VERIFY_OK=True
+if artifact bytes change, the SHA-256 hash changes, and verification can detect that mismatch
 ```
 
-## Public adoption role
+## Expected CI result
 
-This workflow is a bridge between the minimal demo artifact and more mature integrations.
+A successful run should show:
 
-It prepares the repository for future work such as:
+```text
+OK: Original artifact hash matches expected value.
+OK: Tampered artifact hash mismatch detected.
+OK: Demo succeeded: tampering was detected.
+```
 
-- a dedicated public example repository,
-- a reusable GitHub Action,
-- a signed bundle verification workflow,
-- a release integrity workflow,
-- a machine-readable CI verification report,
-- and a recorded five-minute demonstration for reviewers.
+The workflow should fail only if the tampered artifact unexpectedly produces the same hash as the original artifact or if the CI environment cannot execute the minimal shell commands.
 
-## Implementation status
+## Relationship to future DELTA workflows
 
-This is an initial public demonstration workflow.
+This workflow is a public demonstration layer.
 
-It is intentionally simple, transparent, and reviewable.
+Future workflows may add stronger protocol-specific verification, including:
+
+- full signed `.delta` bundle verification,
+- TypeScript verifier execution,
+- signed bundle verification,
+- publication proof checks,
+- private evidence commitment checks,
+- CI/CD release integrity examples.
+
+Those should be added as separate, clearly scoped workflows so that the minimal public demo remains stable, readable, and suitable for first-time reviewers.

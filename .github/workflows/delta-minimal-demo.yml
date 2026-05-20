@@ -1,4 +1,4 @@
-﻿name: DELTA Minimal Public Demo
+name: DELTA Minimal Public Demo
 
 on:
   pull_request:
@@ -10,30 +10,62 @@ on:
 jobs:
   minimal-tamper-detection-demo:
     name: Minimal tamper-detection demo
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
       - name: Run minimal hash-based tamper-detection demo
-        shell: cmd
+        shell: bash
         run: |
-          echo DELTA Protocol minimal public demo artifact.> "%RUNNER_TEMP%\delta-demo-original.txt"
-          echo This file is intentionally simple so that tampering is easy to detect.>> "%RUNNER_TEMP%\delta-demo-original.txt"
+          set -euo pipefail
 
-          for /f "skip=1 tokens=* delims=" %%H in ('certutil -hashfile "%RUNNER_TEMP%\delta-demo-original.txt" SHA256 ^| findstr /v /i "CertUtil hash"') do set "ORIGINAL_HASH=%%H"
+          echo "=== DELTA Protocol Minimal Public Demo ==="
+          echo "Profile: hash-based tamper-detection walkthrough"
+          echo "Boundary: educational demo, not a signed DELTA bundle verifier"
+          echo ""
 
-          copy "%RUNNER_TEMP%\delta-demo-original.txt" "%RUNNER_TEMP%\delta-demo-tampered.txt"
-          echo TAMPERED>> "%RUNNER_TEMP%\delta-demo-tampered.txt"
+          demo_dir="$(mktemp -d)"
+          artifact="$demo_dir/sample-artifact.txt"
+          tampered="$demo_dir/sample-artifact.tampered.txt"
 
-          for /f "skip=1 tokens=* delims=" %%H in ('certutil -hashfile "%RUNNER_TEMP%\delta-demo-tampered.txt" SHA256 ^| findstr /v /i "CertUtil hash"') do set "TAMPERED_HASH=%%H"
+          printf '%s\n' "DELTA Protocol minimal public demo artifact." > "$artifact"
+          printf '%s\n' "This file is intentionally simple so that tampering is easy to detect." >> "$artifact"
 
-          echo Original hash: %ORIGINAL_HASH%
-          echo Tampered hash: %TAMPERED_HASH%
+          expected_hash="$(sha256sum "$artifact" | awk '{print $1}')"
+          observed_hash="$(sha256sum "$artifact" | awk '{print $1}')"
 
-          if "%ORIGINAL_HASH%"=="%TAMPERED_HASH%" (
-            echo ERROR: Tampering was not detected.
-            exit /b 1
-          )
+          echo "[1] Verifying original artifact"
+          echo "  Expected: $expected_hash"
+          echo "  Observed: $observed_hash"
 
-          echo OK: Original and tampered hashes differ.
-          echo OK: Tamper detection succeeded.
-          exit /b 0
+          if [ "$observed_hash" != "$expected_hash" ]; then
+            echo "  ERROR: Original artifact hash does not match expected value."
+            exit 1
+          fi
+
+          echo "  OK: Original artifact hash matches expected value."
+          echo ""
+
+          echo "[2] Tampering with temporary working copy"
+          cp "$artifact" "$tampered"
+          printf '%s\n' "TAMPERED" >> "$tampered"
+
+          tampered_hash="$(sha256sum "$tampered" | awk '{print $1}')"
+
+          echo "  Original expected hash: $expected_hash"
+          echo "  Tampered observed hash: $tampered_hash"
+          echo ""
+
+          echo "[3] Verifying tampered artifact"
+
+          if [ "$tampered_hash" = "$expected_hash" ]; then
+            echo "  ERROR: Tampering was not detected."
+            exit 1
+          fi
+
+          echo "  OK: Tampered artifact hash mismatch detected."
+          echo "  OK: Demo succeeded: tampering was detected."
+          echo ""
+          echo "=== Demo complete ==="
+          echo "DELTA public message: cryptographic binding makes later tampering detectable."
+
+          rm -rf "$demo_dir"
